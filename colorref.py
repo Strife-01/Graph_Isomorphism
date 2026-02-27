@@ -48,7 +48,7 @@ def get_colouring_partition(vertices: List[Vertex]) -> List[List[Vertex]]:
     return list(map(lambda p: p[1], sorted(list(partition.items()), key=lambda pe: pe[0])))
 
 
-def refine_graph_from_partition(partition: List[List[Vertex]]) -> None:
+def refine_vertices_from_partition(partition: List[List[Vertex]]) -> None:
     """
     Assigns new integer colours to vertices based on their position in the new partition.
     :param partition: A sorted list of lists containing vertices grouped by signature.
@@ -97,7 +97,7 @@ def basic_colorref(filename: str) -> List[Tuple[List[int], List[int], int, bool]
         if global_num_colours == len(curr_partition):
             break
 
-        refine_graph_from_partition(curr_partition)
+        refine_vertices_from_partition(curr_partition)
         global_num_colours = len(curr_partition)
         iteration += 1
 
