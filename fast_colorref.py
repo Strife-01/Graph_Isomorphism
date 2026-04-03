@@ -4,19 +4,13 @@ Fast Colour Refinement — O(m log n) Hopcroft-style partition refinement.
 Based on the DFA minimisation algorithm (Hopcroft, 1971) adapted for
 the Graph Isomorphism problem as described in Chapter 4 of the reader.
 
-Key idea:  Instead of iterating over *all* colour classes each round
-(O(n²m) basic refinement), we maintain a work-queue of colour classes
-that might still split other classes.  When a class splits, only the
-*smaller* halves are added to the queue (Lemma 4.9), guaranteeing every
-vertex enters the queue at most O(log n) times → total O(m log n).
-
 Refine(C) for GI:  For each colour class D, partition D by the number
 of neighbours each vertex has inside C.  If D splits, apply the
-"add-smaller-to-queue" rule.
+"add-smaller-to-queue" rule (Lemma 4.9).
 """
 
-from collections import defaultdict, deque
-from typing import List, Dict, Tuple, Optional
+from collections import deque
+from typing import Dict, List, Tuple, Optional
 from graph import Graph, Vertex
 
 
@@ -24,65 +18,28 @@ from graph import Graph, Vertex
 # Data structures
 # ---------------------------------------------------------------------------
 
-class ColourClass:
-    """A single cell in the partition, stored as a Python set for O(1)
-    add / remove / membership and O(|cell|) iteration."""
-
-    __slots__ = ("colour", "members")
-
-    def __init__(self, colour: int, members: set):
-        self.colour = colour
-        self.members = members
-
-    def __len__(self):
-        return len(self.members)
-
-    def __iter__(self):
-        return iter(self.members)
-
-
 class Partition:
-    """Maintains the current partition of vertices into colour classes.
+    """Partition of vertices into colour classes.
 
-    Provides O(1) lookup of which class a vertex belongs to, and efficient
-    splitting of classes.
+    ``classes[colour]`` is a ``set`` of vertices.
+    ``vertex_colour[v]`` gives the colour of vertex v.
     """
 
-    def __init__(self):
-        self.classes: Dict[int, ColourClass] = {}   # colour -> ColourClass
-        self.vertex_colour: Dict[Vertex, int] = {}  # vertex -> its colour
-        self._next_colour = 0
+    __slots__ = ("classes", "vertex_colour", "_next_colour")
 
-    def new_colour(self) -> int:
-        c = self._next_colour
-        self._next_colour += 1
-        return c
+    def __init__(self):
+        self.classes: Dict[int, set] = {}
+        self.vertex_colour: Dict = {}
+        self._next_colour: int = 0
 
     def add_class(self, members: set) -> int:
-        """Create a new colour class from *members* and return its colour."""
-        colour = self.new_colour()
-        cc = ColourClass(colour, members)
-        self.classes[colour] = cc
+        c = self._next_colour
+        self._next_colour += 1
+        self.classes[c] = members
+        vc = self.vertex_colour
         for v in members:
-            self.vertex_colour[v] = colour
-        return colour
-
-    def split(self, colour: int, subset: set) -> Optional[int]:
-        """Split *subset* out of the class with the given *colour*.
-
-        Returns the new colour assigned to *subset*, or None if no split
-        occurred (subset is empty or equals the full class).
-        """
-        cc = self.classes[colour]
-        if not subset or len(subset) == len(cc):
-            return None
-
-        # Remove subset from old class
-        cc.members -= subset
-
-        # Create new class for the subset
-        new_colour = self.add_class(subset)
-        return new_colour
+            vc[v] = c
+        return c
 
     @property
     def num_classes(self) -> int:
@@ -90,291 +47,240 @@ class Partition:
 
 
 # ---------------------------------------------------------------------------
+# Adjacency helper
+# ---------------------------------------------------------------------------
+
+def _build_neighbour_index(vertices) -> Dict:
+    """Pre-compute adjacency lists for fast iteration."""
+    return {v: v.neighbours for v in vertices}
+
+
+# ---------------------------------------------------------------------------
 # Core algorithm
 # ---------------------------------------------------------------------------
 
-def _build_neighbour_index(vertices: List[Vertex]) -> Dict[Vertex, List[Vertex]]:
-    """Pre-compute adjacency lists (as Python lists) for fast iteration."""
-    adj: Dict[Vertex, List[Vertex]] = {}
-    for v in vertices:
-        adj[v] = v.neighbours
-    return adj
-
-
-def _refine(partition: Partition,
-            refine_colour: int,
-            adj: Dict[Vertex, List[Vertex]],
-            in_queue: Dict[int, bool],
-            queue: deque) -> None:
-    """Execute Refine(C) for graph colour refinement.
-
-    For every colour class D in the current partition, count how many
-    neighbours each vertex in D has inside C (the class with colour
-    *refine_colour*).  If vertices in D disagree on this count, split D.
-
-    Implements Algorithm 3/6 from the reader adapted for GI (Lemma 4.17):
-    split by *number* of neighbours in C rather than by a single transition.
-    """
-    refine_class = partition.classes.get(refine_colour)
-    if refine_class is None:
-        return
-
-    # Step 1: For every vertex in C, look at its neighbours and tally
-    # how many neighbours each *external* vertex has inside C.
-    # neighbour_count[v] = # of v's neighbours that are in C
-    neighbour_count: Dict[Vertex, int] = defaultdict(int)
-    affected_classes: Dict[int, set] = defaultdict(set)  # colour -> set of affected vertices
-
-    for u in refine_class:
-        for w in adj[u]:
-            neighbour_count[w] += 1
-            affected_classes[partition.vertex_colour[w]].add(w)
-
-    # Step 2: For each affected colour class D, group its affected vertices
-    # by their neighbour count.  Vertices in D that are NOT in
-    # affected_classes[D.colour] have count 0.
-    for d_colour, affected in affected_classes.items():
-        d_class = partition.classes.get(d_colour)
-        if d_class is None:
-            continue
-
-        # Group affected vertices by their count
-        count_groups: Dict[int, set] = defaultdict(set)
-        for v in affected:
-            count_groups[neighbour_count[v]].add(v)
-
-        # Vertices not in 'affected' have count 0 — they stay together.
-        # We only need to split if there are at least 2 distinct groups
-        # (including the implicit count-0 group if it's non-empty).
-        unaffected_count = len(d_class) - len(affected)
-        if unaffected_count > 0:
-            # There's an implicit group with count 0
-            num_groups = len(count_groups) + 1
-        else:
-            num_groups = len(count_groups)
-
-        if num_groups <= 1:
-            # All vertices in D agree on their count — no split needed
-            continue
-
-        # We need to split D.  Strategy: keep the largest group in D's
-        # original colour, split the rest into new classes.
-        # First, find the largest group.
-        largest_count = -1
-        largest_size = -1
-
-        # Consider the unaffected group (count 0)
-        if unaffected_count > largest_size:
-            largest_size = unaffected_count
-            largest_count = 0
-
-        for cnt, group in count_groups.items():
-            if len(group) > largest_size:
-                largest_size = len(group)
-                largest_count = cnt
-
-        # Split out every group except the largest
-        new_colours = []
-        if largest_count == 0:
-            # Keep unaffected vertices in original class; split out all count groups
-            for cnt, group in count_groups.items():
-                new_c = partition.split(d_colour, group)
-                if new_c is not None:
-                    new_colours.append(new_c)
-        else:
-            # The largest is a count group; keep it, split out the rest
-            # First split out unaffected vertices (count 0) if any
-            if unaffected_count > 0:
-                unaffected_verts = d_class.members - affected
-                new_c = partition.split(d_colour, unaffected_verts)
-                if new_c is not None:
-                    new_colours.append(new_c)
-
-            # Split out other count groups
-            for cnt, group in count_groups.items():
-                if cnt == largest_count:
-                    continue
-                new_c = partition.split(d_colour, group)
-                if new_c is not None:
-                    new_colours.append(new_c)
-
-        # Queue rule (Lemma 4.9):
-        # If d_colour is already in the queue, add all new colours too.
-        # Otherwise, add all new colours EXCEPT the largest fragment.
-        # The original d_colour keeps its slot (it's now the largest fragment
-        # or it was already in the queue).
-        if in_queue.get(d_colour, False):
-            for nc in new_colours:
-                if not in_queue.get(nc, False):
-                    queue.append(nc)
-                    in_queue[nc] = True
-        else:
-            # d_colour is the largest fragment (we kept it there).
-            # Add all the smaller new colours.
-            for nc in new_colours:
-                if not in_queue.get(nc, False):
-                    queue.append(nc)
-                    in_queue[nc] = True
-
-
-def fast_colour_refine(vertices: List[Vertex],
-                       adj: Dict[Vertex, List[Vertex]],
-                       initial_colouring: Dict[Vertex, int]
-                       ) -> Partition:
-    """Run fast colour refinement on the given vertices.
+def fast_colour_refine(vertices: list,
+                       adj: Dict,
+                       initial_colouring: Dict) -> Partition:
+    """Run fast colour refinement to a stable partition.
 
     Args:
-        vertices:  All vertices (across all graphs in the disjoint union).
-        adj:       Pre-computed adjacency lists.
-        initial_colouring:  Maps each vertex to its initial colour.
+        vertices:  All vertices (disjoint union).
+        adj:       vertex → neighbour list.
+        initial_colouring:  vertex → initial colour.
 
     Returns:
         The stable Partition.
     """
-    # Build initial partition from the initial colouring
     partition = Partition()
-    groups: Dict[int, set] = defaultdict(set)
+
+    # Build initial partition
+    groups: Dict[int, set] = {}
     for v in vertices:
-        groups[initial_colouring[v]].add(v)
+        c = initial_colouring[v]
+        if c in groups:
+            groups[c].add(v)
+        else:
+            groups[c] = {v}
 
-    # Create colour classes and seed the queue with ALL initial classes
     queue: deque = deque()
-    in_queue: Dict[int, bool] = {}
-
+    in_queue: set = set()
     for _, members in sorted(groups.items()):
         colour = partition.add_class(members)
         queue.append(colour)
-        in_queue[colour] = True
+        in_queue.add(colour)
 
-    # Main loop: process queue until empty
+    # Local aliases
+    p_classes = partition.classes
+    p_vc = partition.vertex_colour
+    p_nc = [partition._next_colour]  # mutable ref for inline splits
+
     while queue:
-        refine_colour = queue.popleft()
-        in_queue[refine_colour] = False
+        rc = queue.popleft()
+        in_queue.discard(rc)
 
-        if refine_colour not in partition.classes:
+        refine_members = p_classes.get(rc)
+        if refine_members is None:
             continue
 
-        _refine(partition, refine_colour, adj, in_queue, queue)
+        # === Refine(C) — tight inlined loop ===
 
+        # Count how many neighbours each vertex has in C.
+        neighbour_count: Dict = {}
+        for u in refine_members:
+            for w in adj[u]:
+                if w in neighbour_count:
+                    neighbour_count[w] += 1
+                else:
+                    neighbour_count[w] = 1
+
+        # Group affected vertices by their current colour class.
+        affected_by_colour: Dict[int, list] = {}
+        for w in neighbour_count:
+            wc = p_vc[w]
+            if wc in affected_by_colour:
+                affected_by_colour[wc].append(w)
+            else:
+                affected_by_colour[wc] = [w]
+
+        # For each affected colour class, split if vertices disagree on count.
+        for d_colour, affected_list in affected_by_colour.items():
+            d_members = p_classes.get(d_colour)
+            if d_members is None:
+                continue
+
+            d_size = len(d_members)
+            affected_count = len(affected_list)
+
+            # Group affected vertices by their count
+            count_groups: Dict[int, list] = {}
+            for v in affected_list:
+                cnt = neighbour_count[v]
+                if cnt in count_groups:
+                    count_groups[cnt].append(v)
+                else:
+                    count_groups[cnt] = [v]
+
+            unaffected_count = d_size - affected_count
+
+            # How many distinct groups?
+            num_groups = len(count_groups)
+            if unaffected_count > 0:
+                num_groups += 1
+            if num_groups <= 1:
+                continue
+
+            # Find largest fragment to keep in original colour
+            largest_key = 0  # 0 means the unaffected group
+            largest_size = unaffected_count
+
+            for cnt, grp in count_groups.items():
+                gs = len(grp)
+                if gs > largest_size:
+                    largest_size = gs
+                    largest_key = cnt
+
+            # Perform splits
+            d_in_queue = d_colour in in_queue
+            nc_val = p_nc[0]
+
+            if largest_key == 0:
+                # Keep unaffected in original; split out all count groups
+                for cnt, grp in count_groups.items():
+                    grp_set = set(grp)
+                    d_members -= grp_set
+                    p_classes[nc_val] = grp_set
+                    for v in grp:
+                        p_vc[v] = nc_val
+                    if d_in_queue or nc_val not in in_queue:
+                        queue.append(nc_val)
+                        in_queue.add(nc_val)
+                    nc_val += 1
+            else:
+                # Keep the largest count group; split out rest
+                if unaffected_count > 0:
+                    unaff = d_members - set(affected_list)
+                    d_members -= unaff
+                    p_classes[nc_val] = unaff
+                    for v in unaff:
+                        p_vc[v] = nc_val
+                    if d_in_queue or nc_val not in in_queue:
+                        queue.append(nc_val)
+                        in_queue.add(nc_val)
+                    nc_val += 1
+
+                for cnt, grp in count_groups.items():
+                    if cnt == largest_key:
+                        continue
+                    grp_set = set(grp)
+                    d_members -= grp_set
+                    p_classes[nc_val] = grp_set
+                    for v in grp:
+                        p_vc[v] = nc_val
+                    if d_in_queue or nc_val not in in_queue:
+                        queue.append(nc_val)
+                        in_queue.add(nc_val)
+                    nc_val += 1
+
+            p_nc[0] = nc_val
+
+    partition._next_colour = p_nc[0]
     return partition
 
 
 # ---------------------------------------------------------------------------
-# Public API — mirrors basic_colorref interface
+# Public API
 # ---------------------------------------------------------------------------
 
 def colour_refine_graphs(graphs: List[Graph],
-                         initial_colouring: Optional[Dict[Vertex, int]] = None
+                         initial_colouring: Optional[Dict] = None
                          ) -> Partition:
-    """Run fast colour refinement on a list of graphs (disjoint union).
-
-    Args:
-        graphs:  List of Graph objects.
-        initial_colouring:  Optional dict mapping vertices to initial colours.
-                            Defaults to uniform colouring (all colour 0).
-
-    Returns:
-        The stable Partition.
-    """
+    """Run fast colour refinement on a list of graphs (disjoint union)."""
     all_vertices = [v for G in graphs for v in G]
-
     if initial_colouring is None:
         initial_colouring = {v: 0 for v in all_vertices}
-
     adj = _build_neighbour_index(all_vertices)
     return fast_colour_refine(all_vertices, adj, initial_colouring)
 
 
 def get_colour_signature(graph: Graph, partition: Partition) -> Tuple:
-    """Return a canonical signature for a graph under the given partition.
-
-    The signature is a sorted tuple of (colour, count) pairs, which is
-    the same for isomorphic graphs.
-    """
-    counts: Dict[int, int] = defaultdict(int)
+    """Canonical signature: sorted (colour, count) pairs."""
+    counts: Dict[int, int] = {}
+    vc = partition.vertex_colour
     for v in graph:
-        counts[partition.vertex_colour[v]] += 1
+        c = vc[v]
+        counts[c] = counts.get(c, 0) + 1
     return tuple(sorted(counts.items()))
 
 
 def is_balanced(graphs: List[Graph], partition: Partition) -> bool:
-    """Check whether the partition is balanced across all graphs.
-
-    Balanced means every colour class has the same number of vertices
-    in each graph.
-    """
+    """Check balanced colouring across graphs."""
     if len(graphs) < 2:
         return True
-
-    ref_sig = get_colour_signature(graphs[0], partition)
+    ref = get_colour_signature(graphs[0], partition)
     for G in graphs[1:]:
-        if get_colour_signature(G, partition) != ref_sig:
+        if get_colour_signature(G, partition) != ref:
             return False
     return True
 
 
 def is_discrete_for_graph(graph: Graph, partition: Partition) -> bool:
-    """Check whether the partition is discrete for a single graph
-    (every vertex has a unique colour within that graph)."""
-    colours = set()
+    """Check if every vertex in the graph has a unique colour."""
+    n = len(graph)
+    seen = set()
+    vc = partition.vertex_colour
     for v in graph:
-        c = partition.vertex_colour[v]
-        if c in colours:
-            return False
-        colours.add(c)
-    return True
+        seen.add(vc[v])
+    return len(seen) == n
 
 
 def defines_bijection(graph_a: Graph, graph_b: Graph,
                       partition: Partition) -> bool:
-    """Check whether the partition defines a bijection between two graphs.
-
-    A bijection is defined when the colouring is both balanced AND
-    discrete for each graph individually.
-    """
+    """Check if the partition defines a bijection between two graphs."""
     return (is_discrete_for_graph(graph_a, partition) and
             is_discrete_for_graph(graph_b, partition))
 
 
 def basic_colorref_fast(filename: str) -> List[Tuple[List[int], List[int], int, bool]]:
-    """Drop-in replacement for basic_colorref using fast colour refinement.
-
-    Reads a .grl file, runs fast colour refinement on all graphs
-    simultaneously, and returns equivalence classes in the same format
-    as the basic version.
-
-    Returns:
-        Sorted list of (graph_indices, colour_class_sizes, iterations, is_discrete).
-        Note: 'iterations' is set to 0 for fast refinement since it doesn't
-        iterate in rounds — it processes a work-queue instead.
-    """
+    """Drop-in replacement for basic_colorref using fast colour refinement."""
     from graph_io import load_graph
-
     with open(filename, 'r') as file:
         graphs = load_graph(file, graph_class=Graph, read_list=True)
-
     all_vertices = [v for G in graphs for v in G]
     initial_colouring = {v: 0 for v in all_vertices}
     adj = _build_neighbour_index(all_vertices)
     partition = fast_colour_refine(all_vertices, adj, initial_colouring)
 
-    # Group graphs by their colour signature
-    graph_equivalence_classes: Dict[Tuple, List[int]] = defaultdict(list)
+    eq_classes: Dict[Tuple, List[int]] = {}
     for i, G in enumerate(graphs):
         sig = get_colour_signature(G, partition)
-        graph_equivalence_classes[sig].append(i)
+        if sig in eq_classes:
+            eq_classes[sig].append(i)
+        else:
+            eq_classes[sig] = [i]
 
-    # Format output
     result = []
-    for sig, indices in graph_equivalence_classes.items():
-        sorted_indices = sorted(indices)
-
-        # Reconstruct colour class sizes from the signature
-        sizes = sorted([count for _, count in sig])
-
-        is_discrete = all(s == 1 for s in sizes)
-
-        # Fast refinement doesn't track iterations; report 0
-        result.append((sorted_indices, sizes, 0, is_discrete))
-
+    for sig, indices in eq_classes.items():
+        sizes = sorted(count for _, count in sig)
+        result.append((sorted(indices), sizes, 0, all(s == 1 for s in sizes)))
     return sorted(result, key=lambda x: x[0][0])

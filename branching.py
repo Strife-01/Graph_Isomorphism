@@ -72,86 +72,128 @@ def _copy_graph(graph: Graph) -> Tuple[Graph, Dict[Vertex, Vertex]]:
 # Branching helpers
 # ---------------------------------------------------------------------------
 
-def _refine_and_check(graph_g: Graph,
-                      graph_h: Graph,
-                      D: List[Vertex],
-                      I: List[Vertex],
-                      adj: Dict[Vertex, List[Vertex]]
-                      ) -> Tuple[Optional[Partition], str]:
-    """Run colour refinement with the α(D,I) initial colouring and
-    classify the result.
+class _BranchingContext:
+    """Pre-computed state shared across all recursive calls for a pair
+    of graphs, avoiding repeated allocation."""
 
-    Returns:
-        (partition, status) where status is one of:
-          "unbalanced"  — no isomorphism follows (D, I)
-          "bijection"   — unique isomorphism follows (D, I)
-          "branch"      — balanced but not discrete, needs branching
-    """
-    all_vertices = list(graph_g) + list(graph_h)
-    initial_colouring: Dict[Vertex, int] = {v: 0 for v in all_vertices}
-    for i, (d, iv) in enumerate(zip(D, I)):
-        initial_colouring[d] = i + 1
-        initial_colouring[iv] = i + 1
+    __slots__ = ("adj", "all_vertices", "verts_g", "verts_h",
+                 "n_g", "base_colouring")
 
-    partition = fast_colour_refine(all_vertices, adj, initial_colouring)
+    def __init__(self, graph_g: Graph, graph_h: Graph, adj: Dict):
+        self.adj = adj
+        self.verts_g = list(graph_g)
+        self.verts_h = list(graph_h)
+        self.n_g = len(self.verts_g)
+        self.all_vertices = self.verts_g + self.verts_h
+        self.base_colouring = {v: 0 for v in self.all_vertices}
 
-    if not is_balanced([graph_g, graph_h], partition):
-        return None, "unbalanced"
-    if defines_bijection(graph_g, graph_h, partition):
-        return partition, "bijection"
-    return partition, "branch"
+    def refine_and_check(self, D: list, I: list):
+        """Run colour refinement with α(D,I) and classify the result.
+
+        Returns (partition, status) where status is 0 (unbalanced),
+        1 (bijection), or 2 (branch needed).
+        """
+        # Build colouring: modify base, refine, then restore
+        base = self.base_colouring
+        depth = len(D)
+        for i in range(depth):
+            c = i + 1
+            base[D[i]] = c
+            base[I[i]] = c
+
+        partition = fast_colour_refine(self.all_vertices, self.adj, base)
+
+        # Restore base colouring to all-zeros
+        for i in range(depth):
+            base[D[i]] = 0
+            base[I[i]] = 0
+
+        if not is_balanced_pair(self.verts_g, self.verts_h, partition):
+            return None, 0
+        if is_discrete_pair(self.verts_g, self.verts_h, partition):
+            return partition, 1
+        return partition, 2
 
 
-def _choose_branching_class(graph_g: Graph,
-                            graph_h: Graph,
+def is_balanced_pair(verts_g: list, verts_h: list, partition: Partition) -> bool:
+    """Fast balanced check for exactly two graphs."""
+    vc = partition.vertex_colour
+    counts_g: Dict[int, int] = {}
+    for v in verts_g:
+        c = vc[v]
+        counts_g[c] = counts_g.get(c, 0) + 1
+    for v in verts_h:
+        c = vc[v]
+        cnt = counts_g.get(c, 0) - 1
+        if cnt < 0:
+            return False
+        counts_g[c] = cnt
+    return all(c == 0 for c in counts_g.values())
+
+
+def is_discrete_pair(verts_g: list, verts_h: list, partition: Partition) -> bool:
+    """Check discrete for two graphs (fast, no set allocation)."""
+    vc = partition.vertex_colour
+    n = len(verts_g)
+    if n != len(verts_h):
+        return False
+    # A discrete colouring has n distinct colours per graph
+    # Since balanced, just check one graph
+    seen = set()
+    for v in verts_g:
+        c = vc[v]
+        if c in seen:
+            return False
+        seen.add(c)
+    return True
+
+
+def _choose_branching_class(verts_g: list, verts_h: list,
                             partition: Partition
                             ) -> Tuple[List[Vertex], List[Vertex]]:
-    """Choose a non-trivial colour class to branch on.
+    """Choose the smallest non-trivial colour class to branch on."""
+    vc = partition.vertex_colour
+    colours_g: Dict[int, list] = {}
+    colours_h: Dict[int, list] = {}
 
-    Branching rule: pick the colour class with the *smallest* number of
-    vertices per graph (≥ 2 per graph, so ≥ 4 total).  This minimises
-    the branching factor at each level.
+    for v in verts_g:
+        c = vc[v]
+        if c in colours_g:
+            colours_g[c].append(v)
+        else:
+            colours_g[c] = [v]
+    for v in verts_h:
+        c = vc[v]
+        if c in colours_h:
+            colours_h[c].append(v)
+        else:
+            colours_h[c] = [v]
 
-    Returns:
-        (vertices_in_G, vertices_in_H) for the chosen colour class.
-    """
-    colours_g: Dict[int, List[Vertex]] = defaultdict(list)
-    colours_h: Dict[int, List[Vertex]] = defaultdict(list)
+    best_colour = -1
+    best_size = 0x7FFFFFFF
 
-    for v in graph_g:
-        colours_g[partition.vertex_colour[v]].append(v)
-    for v in graph_h:
-        colours_h[partition.vertex_colour[v]].append(v)
-
-    best_colour = None
-    best_size = float("inf")
-
-    for colour, verts_g in colours_g.items():
-        if len(verts_g) < 2:
+    for colour, vg in colours_g.items():
+        lg = len(vg)
+        if lg < 2:
             continue
-        verts_h = colours_h.get(colour, [])
-        if len(verts_h) < 2:
+        vh = colours_h.get(colour)
+        if vh is None or len(vh) < 2:
             continue
-        if len(verts_g) < best_size:
-            best_size = len(verts_g)
+        if lg < best_size:
+            best_size = lg
             best_colour = colour
 
     return colours_g[best_colour], colours_h[best_colour]
 
 
-def _extract_bijection(graph_g: Graph,
-                       graph_h: Graph,
+def _extract_bijection(verts_g: list, verts_h: list,
                        partition: Partition) -> Dict[Vertex, Vertex]:
-    """Extract the vertex mapping f: V(G) → V(H) from a partition that
-    defines a bijection (each colour used exactly once per graph)."""
+    """Extract the vertex mapping f: V(G) → V(H) from a bijection partition."""
+    vc = partition.vertex_colour
     colour_to_h: Dict[int, Vertex] = {}
-    for v in graph_h:
-        colour_to_h[partition.vertex_colour[v]] = v
-
-    mapping: Dict[Vertex, Vertex] = {}
-    for v in graph_g:
-        mapping[v] = colour_to_h[partition.vertex_colour[v]]
-    return mapping
+    for v in verts_h:
+        colour_to_h[vc[v]] = v
+    return {v: colour_to_h[vc[v]] for v in verts_g}
 
 
 # ---------------------------------------------------------------------------
@@ -162,43 +204,37 @@ def count_isomorphisms(graph_g: Graph,
                        graph_h: Graph,
                        D: List[Vertex],
                        I: List[Vertex],
-                       adj: Dict[Vertex, List[Vertex]],
+                       adj: Dict,
                        gi_only: bool = False) -> int:
     """Count isomorphisms from *graph_g* to *graph_h* following (D, I).
 
-    Algorithm 2 (CountIsomorphism) from Chapter 3 of the reader.
-    Used for the GI decision problem (with ``gi_only=True``).
-
-    Args:
-        graph_g:  The first graph.
-        graph_h:  The second graph.
-        D, I:     Vertex-mapping sequences already fixed.
-        adj:      Pre-computed adjacency lists for all vertices.
-        gi_only:  If True, return 0 or 1 (stop after first isomorphism).
-
-    Returns:
-        Number of isomorphisms following (D, I).
+    Algorithm 2 (CountIsomorphism) from Chapter 3.
     """
-    partition, status = _refine_and_check(graph_g, graph_h, D, I, adj)
+    ctx = _BranchingContext(graph_g, graph_h, adj)
 
-    if status == "unbalanced":
-        return 0
-    if status == "bijection":
-        return 1
+    def _count(D: list, I: list) -> int:
+        partition, status = ctx.refine_and_check(D, I)
+        if status == 0:
+            return 0
+        if status == 1:
+            return 1
 
-    colour_class_g, colour_class_h = _choose_branching_class(
-        graph_g, graph_h, partition
-    )
-    x = colour_class_g[0]
+        cg, ch = _choose_branching_class(ctx.verts_g, ctx.verts_h, partition)
+        x = cg[0]
 
-    num = 0
-    for y in colour_class_h:
-        num += count_isomorphisms(
-            graph_g, graph_h, D + [x], I + [y], adj, gi_only
-        )
-        if gi_only and num > 0:
-            return num
-    return num
+        num = 0
+        D.append(x)
+        for y in ch:
+            I.append(y)
+            num += _count(D, I)
+            I.pop()
+            if gi_only and num > 0:
+                D.pop()
+                return num
+        D.pop()
+        return num
+
+    return _count(list(D), list(I))
 
 
 # ---------------------------------------------------------------------------
@@ -258,6 +294,19 @@ def count_automorphisms(graph: Graph,
     if is_forest(graph):
         return _forest_automorphisms(graph)
 
+    return _count_aut_core(graph, adj, None)
+
+
+
+def _count_aut_core(graph: Graph, adj: Dict,
+                    pre_colouring: Optional[Dict]) -> int:
+    """Core #Aut via generating sets + Lemma 5.11 pruning.
+
+    Args:
+        graph:          The graph (possibly twin-reduced).
+        adj:            Pre-computed adjacency lists.
+        pre_colouring:  Optional initial colouring from twin reduction.
+    """
     graph_copy, vertex_map = _copy_graph(graph)
 
     for v in graph_copy:
@@ -268,85 +317,78 @@ def count_automorphisms(graph: Graph,
     copy_to_orig = {copy_verts[i]: orig_verts[i]
                     for i in range(len(orig_verts))}
 
+    ctx = _BranchingContext(graph, graph_copy, adj)
+
+    # Apply pre-colouring if provided (from twin reduction)
+    if pre_colouring is not None:
+        for v in orig_verts:
+            ctx.base_colouring[v] = pre_colouring.get(v, 0)
+        for i, v in enumerate(copy_verts):
+            ctx.base_colouring[v] = pre_colouring.get(orig_verts[i], 0)
+
     generating_set: List[Permutation] = []
 
     def _to_permutation(partition: Partition) -> Permutation:
-        """Convert a bijection-defining partition to a Permutation on
-        orig_verts."""
-        bijection = _extract_bijection(graph, graph_copy, partition)
-        perm_map = {v: copy_to_orig[bijection[v]] for v in orig_verts}
-        return Permutation(perm_map)
+        bijection = _extract_bijection(ctx.verts_g, ctx.verts_h, partition)
+        return Permutation({v: copy_to_orig[bijection[v]] for v in orig_verts})
 
-    def _update(D: List[Vertex], I: List[Vertex]) -> bool:
-        """Algorithm 9 — recursive branching with Lemma 5.11 pruning.
+    D: list = []
+    I: list = []
 
-        Returns True if a NEW non-trivial automorphism was added to the
-        generating set (signals the caller to prune).
-        """
-        partition, status = _refine_and_check(graph, graph_copy, D, I, adj)
-
-        if status == "unbalanced":
-            return False
-
-        if status == "bijection":
+    def _update() -> None:
+        """Algorithm 9 — recursive branching with Lemma 5.11 pruning."""
+        partition, status = ctx.refine_and_check(D, I)
+        if status == 0:
+            return
+        if status == 1:
             perm = _to_permutation(partition)
-            if perm.is_identity():
-                return False
-            generating_set.append(perm)
-            return True
+            if not perm.is_identity():
+                generating_set.append(perm)
+            return
 
-        # Branch
-        colour_class_g, colour_class_h = _choose_branching_class(
-            graph, graph_copy, partition
-        )
-        x = colour_class_g[0]
+        cg, ch = _choose_branching_class(ctx.verts_g, ctx.verts_h, partition)
+        x = cg[0]
         x_copy = vertex_map[x]
+        others = [y for y in ch if y is not x_copy]
 
-        # Process the trivial mapping (x → x_copy) first to collect
-        # all automorphisms that fix x (the stabiliser at this level).
-        others = [y for y in colour_class_h if y is not x_copy]
+        D.append(x)
+        if x_copy in ch:
+            I.append(x_copy)
+            _update()
+            I.pop()
 
-        # Trivial branch: x → x_copy (walk down the trivial path)
-        if x_copy in colour_class_h:
-            _update(D + [x], I + [x_copy])
-
-        # Non-trivial branches: x → y for y ≠ x_copy
-        # By Lemma 5.11, once we find one automorphism mapping x→y,
-        # our generating set already generates ALL automorphisms with
-        # that mapping.  So we stop exploring that branch immediately.
         for y in others:
-            _find_one_automorphism(D + [x], I + [y])
+            I.append(y)
+            _find_one(cg, ch)
+            I.pop()
+        D.pop()
 
-        return False
-
-    def _find_one_automorphism(D: List[Vertex], I: List[Vertex]) -> bool:
-        """Explore a non-trivial branch, stopping as soon as any single
-        automorphism is found at any depth (Lemma 5.11 pruning)."""
-        partition, status = _refine_and_check(graph, graph_copy, D, I, adj)
-
-        if status == "unbalanced":
+    def _find_one(parent_cg, parent_ch) -> bool:
+        """Find one automorphism in this non-trivial branch."""
+        partition, status = ctx.refine_and_check(D, I)
+        if status == 0:
             return False
-
-        if status == "bijection":
+        if status == 1:
             perm = _to_permutation(partition)
             if perm.is_identity():
                 return False
             generating_set.append(perm)
             return True
 
-        # Must branch further, but still looking for just ONE automorphism
-        colour_class_g, colour_class_h = _choose_branching_class(
-            graph, graph_copy, partition
-        )
-        x = colour_class_g[0]
-
-        for y in colour_class_h:
-            if _find_one_automorphism(D + [x], I + [y]):
-                return True  # Found one — prune immediately
+        cg, ch = _choose_branching_class(ctx.verts_g, ctx.verts_h, partition)
+        x = cg[0]
+        D.append(x)
+        for y in ch:
+            I.append(y)
+            found = _find_one(cg, ch)
+            I.pop()
+            if found:
+                D.pop()
+                return True
+        D.pop()
         return False
 
-    _update([], [])
-
+    _update()
     return group_order(generating_set, orig_verts)
 
 
@@ -367,8 +409,7 @@ def _tree_equivalence_classes(graphs: List[Graph]) -> List[List[int]]:
                   key=lambda c: c[0])
 
 
-def _are_isomorphic(graph_g: Graph, graph_h: Graph,
-                    adj: Dict[Vertex, List[Vertex]]) -> bool:
+def _are_isomorphic(graph_g: Graph, graph_h: Graph, adj: Dict) -> bool:
     """Decide whether *graph_g* and *graph_h* are isomorphic."""
     if len(graph_g) != len(graph_h):
         return False

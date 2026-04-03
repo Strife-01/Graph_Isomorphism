@@ -239,3 +239,131 @@ def find_twin_groups(graph: Graph) -> Tuple[List[Set[Vertex]], List[Set[Vertex]]
     true_groups = [set(g) for g in true_sig.values() if len(g) >= 2]
 
     return true_groups, false_groups
+
+
+# ---------------------------------------------------------------------------
+# Iterative twin elimination  (Section 6.3)
+# ---------------------------------------------------------------------------
+
+def reduce_twins(graph: Graph) -> Tuple[Graph, int, Dict]:
+    """Iteratively detect and collapse (false) twin groups.
+
+    For each group of k twins, we keep one representative vertex and
+    give it a unique colour encoding the group size.  The automorphism
+    count must be multiplied by k! per group.  After each round of
+    elimination, new twin groups may appear, so we repeat until no
+    more are found.
+
+    Args:
+        graph:  The input graph.
+
+    Returns:
+        (reduced_graph, aut_factor, initial_colouring)
+        - reduced_graph:  A new Graph with twins collapsed.
+        - aut_factor:     Multiplicative factor for |Aut| from eliminated twins.
+        - initial_colouring:  Dict mapping each vertex of the reduced graph
+                              to an initial colour that encodes twin-group
+                              structure (for use in colour refinement).
+    """
+    from graph import Edge
+
+    vertices = list(graph.vertices)
+    n = len(vertices)
+
+    # Build adjacency as sets of vertex indices for fast manipulation
+    idx = {v: i for i, v in enumerate(vertices)}
+    adj_sets: List[Set[int]] = [set() for _ in range(n)]
+    for e in graph.edges:
+        ti, hi = idx[e.tail], idx[e.head]
+        adj_sets[ti].add(hi)
+        adj_sets[hi].add(ti)
+
+    alive = set(range(n))       # vertices still in the graph
+    alive = set(range(n))
+    colour = [0] * n    # each vertex's colour (encodes twin history)
+    next_colour = 1
+    aut_factor = 1
+
+    # Representative colour encodes (twin_type, group_size) so that:
+    # - Representatives of different-type/size groups get distinct colours
+    # - Representatives of same-type/size groups share a colour (allowing
+    #   colour refinement to discover if they're structurally equivalent)
+    # - Non-twin vertices keep colour 0
+    type_size_to_colour: Dict[Tuple, int] = {}
+    round_num = 0
+
+    changed = True
+    while changed:
+        round_num += 1
+        changed = False
+
+        # Detect false twins: non-adjacent, identical neighbourhoods
+        false_sig: Dict[Tuple, List[int]] = defaultdict(list)
+        for i in alive:
+            sig = (colour[i], frozenset(adj_sets[i] & alive))
+            false_sig[sig].append(i)
+
+        for sig, group in false_sig.items():
+            if len(group) < 2:
+                continue
+            changed = True
+            k = len(group)
+            aut_factor *= factorial(k)
+
+            ts_key = ("F", k, round_num)
+            if ts_key not in type_size_to_colour:
+                type_size_to_colour[ts_key] = next_colour
+                next_colour += 1
+
+            keep = group[0]
+            colour[keep] = type_size_to_colour[ts_key]
+            for rem in group[1:]:
+                alive.discard(rem)
+                for nb in adj_sets[rem]:
+                    adj_sets[nb].discard(rem)
+
+        # Detect true twins: adjacent, N(u) ∪ {u} identical
+        true_sig: Dict[Tuple, List[int]] = defaultdict(list)
+        for i in alive:
+            sig = (colour[i], frozenset((adj_sets[i] & alive) | {i}))
+            true_sig[sig].append(i)
+
+        for sig, group in true_sig.items():
+            if len(group) < 2:
+                continue
+            changed = True
+            k = len(group)
+            aut_factor *= factorial(k)
+
+            ts_key = ("T", k, round_num)
+            if ts_key not in type_size_to_colour:
+                type_size_to_colour[ts_key] = next_colour
+                next_colour += 1
+
+            keep = group[0]
+            colour[keep] = type_size_to_colour[ts_key]
+            for rem in group[1:]:
+                alive.discard(rem)
+                for nb in adj_sets[rem]:
+                    adj_sets[nb].discard(rem)
+
+    # Build the reduced graph
+    alive_list = sorted(alive)
+    reduced = Graph(directed=graph.directed, n=len(alive_list))
+    new_verts = list(reduced.vertices)
+    old_to_new = {alive_list[j]: new_verts[j] for j in range(len(alive_list))}
+
+    seen_edges: Set[Tuple[int, int]] = set()
+    for i in alive_list:
+        for nb in adj_sets[i] & alive:
+            ek = (min(i, nb), max(i, nb))
+            if ek not in seen_edges:
+                seen_edges.add(ek)
+                reduced.add_edge(Edge(old_to_new[i], old_to_new[nb]))
+
+    # Initial colouring for the reduced graph
+    init_colouring = {}
+    for j, i in enumerate(alive_list):
+        init_colouring[new_verts[j]] = colour[i]
+
+    return reduced, aut_factor, init_colouring
