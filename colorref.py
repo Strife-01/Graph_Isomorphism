@@ -1,135 +1,173 @@
-from graph import Vertex, Edge, Graph
-from graph_io import load_graph
-from typing import Literal, Dict, List, Set, Tuple
+"""
+Basic Colour Refinement — O(n²m) Weisfeiler-Lehman 1D algorithm.
+
+Iteratively refines vertex colours based on the sorted multiset of
+neighbour colours until a stable colouring is reached (no colour class
+splits further).  All graphs are processed simultaneously in a single
+global colour space (disjoint union) so that isomorphic graphs receive
+identical colour signatures.
+
+Reference: Chapter 2 of the reader (Algorithm 1 — Colour Refinement).
+"""
+
 from collections import defaultdict
-
-"""
-1D Colour Refinement
-Disjoint Union - Weisfeiler-Lehman Algorithm
-"""
+from typing import List, Dict, Tuple
+from graph import Graph, Vertex
+from graph_io import load_graph
 
 
-def set_default_colouring(G: Graph, initial_colouring_type: Literal['uniform', 'degree'] = 'uniform') -> None:
+# ---------------------------------------------------------------------------
+# Initialisation
+# ---------------------------------------------------------------------------
+
+def set_default_colouring(graph: Graph, mode: str = "uniform") -> None:
+    """Assign an initial colour to every vertex in *graph*.
+
+    Args:
+        graph:  The graph whose vertices are coloured in-place.
+        mode:   ``"uniform"`` sets colour 1 for all vertices.
+                ``"degree"`` sets each vertex's colour to its degree.
     """
-    Initializes the colour of all vertices in a given graph.
-    :param G: The Graph object whose vertices are to be coloured.
-    :param initial_colouring_type: 'uniform' assigns colour 1 to all vertices. 
-    :return: None. Modifies the vertices of the graph in-place.
-    """
-    for v in G:
-        v.colour = v.degree if initial_colouring_type == 'degree' else 1
+    for v in graph:
+        v.colour = v.degree if mode == "degree" else 1
 
+
+# ---------------------------------------------------------------------------
+# Partition helpers
+# ---------------------------------------------------------------------------
 
 def partition_vertices(vertices: List[Vertex]) -> Dict[Tuple, List[Vertex]]:
+    """Group vertices by their colour signature.
+
+    A vertex's signature is the tuple
+    ``(own_colour, sorted_neighbour_colour_1, …)``.
+    Vertices with the same signature are structurally indistinguishable
+    by 1-WL and belong to the same partition cell.
+
+    Args:
+        vertices:  All vertices across every graph (disjoint union).
+
+    Returns:
+        A dict mapping each signature to its list of vertices.
     """
-    Groups vertices based on their current colour and the colours of their neighbours.
-    :param vertices: A list of all vertices across ALL graphs (disjoint union).
-    :return: A dictionary where the keys are tuples representing the vertex's 
-             colour signature: (vertex_colour, sorted_neighbour_colour_1, ...), 
-             and the values are lists of Vertex objects sharing that signature.
-    """
-    partition = defaultdict(list)
+    partition: Dict[Tuple, List[Vertex]] = defaultdict(list)
     for v in vertices:
-        v_nhc = (v.colour, *sorted([n_v.colour for n_v in v.neighbours]))
-        partition[v_nhc].append(v)
+        signature = (v.colour, *sorted(n.colour for n in v.neighbours))
+        partition[signature].append(v)
     return partition
 
 
-def get_colouring_partition(vertices: List[Vertex]) -> List[List[Vertex]]:
-    """
-    Generates a deterministically sorted list of vertex partitions.
-    Sorting the partitions by their colour signature ensures that isomorphic 
-    graphs strictly receive the exact same new colour IDs in the next step.
-    :param vertices: A list of all vertices across ALL graphs.
-    :return: A list of lists, where each inner list contains vertices that 
-             share the same structural signature, sorted by that signature.
+def get_sorted_partition(vertices: List[Vertex]) -> List[List[Vertex]]:
+    """Return a deterministically sorted list of partition cells.
+
+    Sorting by signature ensures that isomorphic graphs receive the
+    exact same new colour ids in the next refinement step.
+
+    Args:
+        vertices:  All vertices across every graph.
+
+    Returns:
+        A list of vertex groups, sorted by their signature.
     """
     partition = partition_vertices(vertices)
-    return list(map(lambda p: p[1], sorted(list(partition.items()), key=lambda pe: pe[0])))
+    return [cell for _, cell in sorted(partition.items())]
 
 
-def refine_vertices_from_partition(partition: List[List[Vertex]]) -> None:
+# ---------------------------------------------------------------------------
+# Refinement step
+# ---------------------------------------------------------------------------
+
+def assign_colours_from_partition(partition: List[List[Vertex]]) -> None:
+    """Assign new integer colours based on partition position.
+
+    Cell *i* in the sorted partition receives colour *i*.
+    Modifies vertex colours in-place.
+
+    Args:
+        partition:  Sorted list of vertex groups (from ``get_sorted_partition``).
     """
-    Assigns new integer colours to vertices based on their position in the new partition.
-    :param partition: A sorted list of lists containing vertices grouped by signature.
-    :return: None. Modifies the vertex colours in-place.
-    """
-    for i, vertices in enumerate(partition):
-        for v in vertices:
-            if v.colour != i:
-                v.colour = i
+    for colour, cell in enumerate(partition):
+        for v in cell:
+            v.colour = colour
 
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 def basic_colorref(filename: str) -> List[Tuple[List[int], List[int], int, bool]]:
+    """Run basic 1-WL colour refinement on a ``.grl`` file.
+
+    Reads all graphs from the file, pools their vertices into a single
+    disjoint union, and iteratively refines until the global colouring
+    is stable.  Graphs are then grouped into equivalence classes by
+    their sorted colour multiset.
+
+    Args:
+        filename:  Path to a ``.grl`` file containing one or more graphs.
+
+    Returns:
+        A sorted list of tuples, one per equivalence class:
+            - ``graph_indices`` — sorted list of 0-based graph indices.
+            - ``colour_class_sizes`` — sorted list of colour-class sizes.
+            - ``iterations`` — number of refinement rounds to stability.
+            - ``is_discrete`` — whether every colour class has size 1.
     """
-    Executes the 1D Colour Refinement (Weisfeiler-Lehman) algorithm on a file containing
-    multiple graphs. It processes all graphs simultaneously in a global colour space 
-    (disjoint union) to accurately identify equivalence classes.
-    :param filename: Path to a .grl file containing the graphs.
-    :return: A sorted list of tuples representing equivalence classes. Each tuple contains:
-             - A sorted list of graph indices belonging to the class.
-             - A sorted list of the sizes of the final colour classes.
-             - The number of iterations it took for these graphs to reach stability.
-             - A boolean indicating whether the final colouring is discrete.
-    """
-    with open(filename, 'r') as file:
+    with open(filename, "r") as file:
         graphs = load_graph(file, graph_class=Graph, read_list=True)
 
-    # 1. Pool all vertices to run refinement on the disjoint union
-    all_vertices = []
+    # 1. Pool all vertices and assign uniform initial colouring
+    all_vertices: List[Vertex] = []
     for G in graphs:
         set_default_colouring(G)
-        for v in G:
-            all_vertices.append(v)
+        all_vertices.extend(G)
 
-    # Trackers for individual graph stability
-    num_colours_per_graph = [len(set(v.colour for v in G)) for G in graphs]
+    # Per-graph colour counts (used to track individual convergence)
+    num_colours_per_graph = [len({v.colour for v in G}) for G in graphs]
     iterations_to_stability = [0] * len(graphs)
-    
-    global_num_colours = len(set(v.colour for v in all_vertices))
+
+    global_num_colours = len({v.colour for v in all_vertices})
     iteration = 0
 
-    # 2. Main Refinement Loop
+    # 2. Iterative refinement loop
     while True:
-        curr_partition = get_colouring_partition(all_vertices)
-        
-        # Stop condition: The number of global colour classes stopped increasing
-        if global_num_colours == len(curr_partition):
+        current_partition = get_sorted_partition(all_vertices)
+
+        # Stop when the number of global colour classes no longer increases
+        if global_num_colours == len(current_partition):
             break
 
-        refine_vertices_from_partition(curr_partition)
-        global_num_colours = len(curr_partition)
+        assign_colours_from_partition(current_partition)
+        global_num_colours = len(current_partition)
         iteration += 1
 
-        # Track exactly when each individual graph stops splitting
+        # Track the iteration at which each graph individually stabilises
         for i, G in enumerate(graphs):
-            current_g_colours = len(set(v.colour for v in G))
+            current_g_colours = len({v.colour for v in G})
             if current_g_colours > num_colours_per_graph[i]:
                 num_colours_per_graph[i] = current_g_colours
                 iterations_to_stability[i] = iteration
 
-    # 3. Group by Global Signature
-    graph_equivalence_classes = defaultdict(list)
+    # 3. Group graphs by their global colour signature
+    graph_classes: Dict[Tuple, List[int]] = defaultdict(list)
     for i, G in enumerate(graphs):
-        # A graph's signature is the sorted multiset of its global vertex colours
-        global_signature = tuple(sorted([v.colour for v in G]))
-        graph_equivalence_classes[global_signature].append(i)
+        signature = tuple(sorted(v.colour for v in G))
+        graph_classes[signature].append(i)
 
-    # 4. Format Output
-    result = []
-    for signature, indices in graph_equivalence_classes.items():
+    # 4. Format output
+    result: List[Tuple[List[int], List[int], int, bool]] = []
+    for signature, indices in graph_classes.items():
         sorted_indices = sorted(indices)
 
-        # Reconstruct the sizes of the colour classes from the signature
-        counts = defaultdict(int)
+        # Reconstruct colour-class sizes from the signature
+        counts: Dict[int, int] = defaultdict(int)
         for colour in signature:
             counts[colour] += 1
-    
-        sizes = sorted(list(counts.values()))
+        sizes = sorted(counts.values())
+
         iters = iterations_to_stability[sorted_indices[0]]
-        is_discrete = (len(sizes) == sum(sizes))
-        
+        is_discrete = len(sizes) == sum(sizes)
+
         result.append((sorted_indices, sizes, iters, is_discrete))
 
-    # Return sorted by the first graph index in each equivalence class
     return sorted(result, key=lambda x: x[0][0])
