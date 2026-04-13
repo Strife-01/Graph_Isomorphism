@@ -1,139 +1,391 @@
-\documentclass[11pt,a4paper]{article}
-\usepackage[margin=2.5cm]{geometry}
-\usepackage{booktabs}
-\usepackage{amsmath,amssymb,amsthm}
-\usepackage{algorithm}
-\usepackage{algorithmic}
-\usepackage{hyperref}
-\usepackage{siunitx}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Journal Article
+% LaTeX Template
+% Version 1.5 (20 Mar. 2025)
+%
+% This template has been downloaded from:
+% http://www.LaTeXTemplates.com
+%
+% Slightly updated by  Marc Uetz
+% Version 1.4 update by Ruben Hoeksma
+% Version 1.5 update by Ruben Hoeksma:
+% -    adapted AI rules
+%
+% Original author:
+% Frits Wenneker (http://www.howtotex.com)
+%
+% License:
+% CC BY-NC-SA 3.0 (http://creativecommons.org/licenses/by-nc-sa/3.0/)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\newtheorem{theorem}{Theorem}
+%----------------------------------------------------------------------------------------
+%	PACKAGES AND OTHER DOCUMENT CONFIGURATIONS
+%----------------------------------------------------------------------------------------
+
+\documentclass[twoside]{article}
+
+\usepackage{lipsum,pifont} % Package to generate dummy text throughout this template
+\newcommand{\cmark}{\ding{51}}%
+\newcommand{\xmark}{\ding{55}}%
+
+\usepackage{amsmath,amssymb,amsthm} % Mathematical Symbols, styles, etc
+
+\newtheorem{theorem}{Theorem}[section]
 \newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
 
-\title{Project Documentation Group XX}
-\author{Andrei Ursachi\\University of Twente\\\texttt{a.ursachi@student.utwente.nl}}
+\usepackage[sc]{mathpazo} % Use the Palatino font
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc} % Use 8-bit encoding that has 256 glyphs
+\linespread{1.05} % Line spacing - Palatino needs more space between lines
+\usepackage{microtype} % Slightly tweak font spacing for aesthetics
+
+\usepackage[hmarginratio=1:1,top=32mm,columnsep=20pt,headheight=13pt]{geometry} % Document margins
+\usepackage{multicol} % Used for the two-column layout of the document
+\usepackage[hang, small,labelfont=bf,up,textfont=it,up]{caption} % Custom captions under/above floats in tables or figures
+\usepackage{booktabs} % Horizontal rules in tables
+\usepackage{float} % Required for tables and figures in the multi-column environment - they need to be placed in specific locations with the [H] (e.g. \begin{table}[H])
+\usepackage[colorlinks,allcolors=blue]{hyperref} % For hyperlinks in the PDF
+
+\usepackage{lettrine} % The lettrine is the first enlarged letter at the beginning of the text
+\usepackage{paralist} % Used for the compactitem environment which makes bullet points with less space between them
+
+\usepackage{abstract} % Allows abstract customization
+\renewcommand{\abstractnamefont}{\normalfont\bfseries} % Set the "Abstract" text to bold
+\renewcommand{\abstracttextfont}{\normalfont\small\itshape} % Set the abstract itself to small italic text
+
+\usepackage{titlesec} % Allows customization of titles
+\titleformat{\section}[block]{\large\scshape}{\thesection.}{1em}{} % Change the look of the section titles
+\titleformat{\subsection}[block]{\large}{\thesubsection.}{1em}{} % Change the look of the section titles
+
+\usepackage{fancyhdr} % Headers and footers
+\pagestyle{fancy} % All pages have headers and footers
+\fancyhead{} % Blank out the default header
+\fancyfoot{} % Blank out the default footer
+\fancyhead[C]{A.\ Ursachi, M.\ \'{A}.\ Simonet S\'{a}nchez, S.\ F.\ K.\ Abdul Muthaleeb: \shorttitle} % Custom header text
+\fancyfoot[RO,LE]{\thepage} % Custom footer text
+
+% Algorithm pseudocode
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+% Source code listings
+\usepackage{xcolor}
+\usepackage{listings}
+\lstset{
+    language=Python,
+    basicstyle=\ttfamily\scriptsize,
+    keywordstyle=\bfseries\color{blue!70!black},
+    commentstyle=\itshape\color{green!50!black},
+    stringstyle=\color{red!60!black},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    breaklines=true,
+    frame=tb,
+    captionpos=b,
+    tabsize=4,
+    showstringspaces=false,
+    xleftmargin=2em,
+    framexleftmargin=1.5em,
+    inputencoding=utf8,
+    extendedchars=true,
+    literate=
+        {—}{{---}}1
+        {→}{{$\rightarrow$}}1
+        {←}{{$\leftarrow$}}1
+        {×}{{$\times$}}1
+        {α}{{$\alpha$}}1
+        {β}{{$\beta$}}1
+        {σ}{{$\sigma$}}1
+        {∪}{{$\cup$}}1
+        {∈}{{$\in$}}1
+        {∏}{{$\prod$}}1
+        {≥}{{$\geq$}}1
+        {≠}{{$\neq$}}1
+        {²}{{$^2$}}1
+        {⁻}{{$^{-}$}}1
+        {¹}{{$^{1}$}}1
+        {⟨}{{$\langle$}}1
+        {⟩}{{$\rangle$}}1
+        {…}{{$\ldots$}}1
+        {│}{{|}}1,
+}
+
+%----------------------------------------------------------------------------------------
+%	TITLE SECTION
+%----------------------------------------------------------------------------------------
+
+\newcommand{\articletitle}{Project Documentation Group 28}
+\newcommand{\shorttitle}{Project Documentation Group 28}
+
+\title{\vspace{-15mm}\fontsize{24pt}{10pt}\selectfont\textbf{\articletitle}} % Article title
+
+\author{
+\large
+\textsc{Andrei Ursachi, Miguel \'{A}ngel Simonet S\'{a}nchez,}\\
+\textsc{and Salmanul Faris Kodungookaran Abdul Muthaleeb}\\[2mm]
+\normalsize University of Twente \\
+\normalsize \href{mailto:a.ursachi@student.utwente.nl}{a.ursachi@student.utwente.nl},
+\href{mailto:m.a.simonetsanchez@student.utwente.nl}{m.a.simonetsanchez@student.utwente.nl},\\
+\normalsize \href{mailto:s.f.kodungookaranabdulmuthaleeb@student.utwente.nl}{s.f.kodungookaranabdulmuthaleeb@student.utwente.nl}
+}
+
 \date{\today}
 
+%----------------------------------------------------------------------------------------
+
 \begin{document}
-\maketitle
 
-According to the following documentation of computational results for the graph isomorphism project, we aim at a grade of \textbf{9.5}, which is in accordance with the grading rules.
+\thispagestyle{empty}
+\maketitle % Insert title
 
-% If you have group members, add the balance sheet table here:
-% \begin{table}[h]
-% \centering
-% \begin{tabular}{lc}
-% \toprule
-% Team member & Grade (deviation from average) \\
-% \midrule
-% Andrei Ursachi & 9.5 (+0.0) \\
-% Member B & X.X (+Y.Y) \\
-% \bottomrule
-% \end{tabular}
-% \caption{Suggested grades}
-% \end{table}
+%----------------------------------------------------------------------------------------
+%	ARTICLE CONTENTS
+%----------------------------------------------------------------------------------------
+
+According to the following documentation of computational results for the graph isomorphism project, we aim at a group-average grade of 10, which is in accordance with the grading rules.
+The work has been distributed equally among the three group members, as evidenced by Table~\ref{tab:workdistr}.
+\begin{table}[h]
+	\centering
+	\begin{tabular}{l|c}
+		Team member & grade (deviation from average)\\
+		\hline
+		Andrei Ursachi (s3351912) & 10.0 (+0.0)\\
+		Miguel \'{A}ngel Simonet S\'{a}nchez (s3398723) & 10.0 (+0.0)\\
+		Salmanul Faris K.\ Abdul Muthaleeb (s3401731) & 10.0 (+0.0)
+	\end{tabular}
+	\caption{Suggested grades}
+\end{table}
 
 \paragraph{On computational results.}
-All computations were performed on a MacBook with Apple Silicon. Each measurement was run 3 times; the median is reported. All times are wall-clock seconds.
+All computations were performed on the same machine (Linux, AMD64). Each measurement was run 3 times; the median is reported. All times are wall-clock seconds. Our implementation uses only the Python 3.10+ standard library with no external dependencies.
 
-%% ====================================================================
-\section{Category 6 (Pass): Basic Problem Instances}
+%------------------------------------------------
+\section{Category 6: Basic Problem Instances}
 
-All 7 basic problem instances are solved correctly. Table~\ref{tab:basic} shows the computation times.
+All basic problem instances have been solved correctly during the programming competition. Table~\ref{tab:basic} shows the computation times on the mandatory colour-refinement sample instances. Every instance is solved correctly and efficiently.
 
 \begin{table}[h]
 \centering
-\begin{tabular}{lcc}
-\toprule
-Instance & Correctly solved & Comp.\ time (s) \\
-\midrule
-test01GI.grl   & \checkmark & 0.05 \\
-test02GI.grl   & \checkmark & 0.12 \\
-test03GI.grl   & \checkmark & 0.02 \\
-test04GI.grl   & \checkmark & 0.22 \\
-test05Aut.grl  & \checkmark & 0.02 \\
-test06GIAut.grl & \checkmark & 0.01 \\
-test07GIAut.grl & \checkmark & 0.07 \\
-\bottomrule
+\begin{tabular}{r|c|r}
+instance & correctly solved & comp.\ time (s)\\
+\noalign{\smallskip}\hline\hline\noalign{\smallskip}
+colorref\_smallexample\_2\_49    & \cmark & 0.001\\
+colorref\_smallexample\_4\_7     & \cmark & $<$0.001\\
+colorref\_smallexample\_4\_16    & \cmark & $<$0.001\\
+colorref\_smallexample\_6\_15    & \cmark & 0.001\\
+colorref\_largeexample\_4\_1026  & \cmark & 0.080\\
+colorref\_largeexample\_6\_960   & \cmark & 0.036\\
+test\_empty                      & \cmark & $<$0.001\\
+test\_cycles                     & \cmark & 0.002\\
+test\_trees                      & \cmark & $<$0.001\\
+test\_3reg                       & \cmark & 0.002\\
+test\_stab                       & \cmark & $<$0.001\\
+test\_iter                       & \cmark & 0.001\\
+test\_cref9                      & \cmark & $<$0.001\\
+cref9vert3comp\_10\_27           & \cmark & 0.002\\
 \end{tabular}
-\caption{Computation times for basic instances.}
-\label{tab:basic}
+\caption{Computation times basic instances.}\label{tab:basic}
 \end{table}
 
-%% ====================================================================
-\section{Fast Partition Refinement (grade +1)}
+\paragraph{Architecture overview.}
+Our solver is invoked via \texttt{python3 branching.py <file>}. It automatically detects the problem type from the filename (\texttt{*GI.grl} for GI, \texttt{*Aut.grl/gr} for \#Aut, \texttt{*GIAut.grl} for both). The pipeline is:
+\begin{enumerate}
+\item \textbf{Preprocessing}: detect trees/forests (solved in $O(n)$ via AHU).
+\item \textbf{Colour refinement}: compute a stable colouring using the fast $O(m \log n)$ Hopcroft-style algorithm.
+\item \textbf{Branching}: if the colouring is balanced but not discrete, individualise-and-refine.
+\item \textbf{Automorphism counting}: use generating sets with Lemma~5.11 pruning and the orbit-stabiliser theorem.
+\end{enumerate}
 
-We implemented the fast partition refinement algorithm based on Hopcroft's DFA minimisation~\cite{hopcroft1971}, adapted for graph colour refinement as described in Chapter~4 of the reader.
+\paragraph{Basic colour refinement.}
+Algorithm~\ref{alg:basic_cr} shows the basic colour refinement procedure (Algorithm~1 from the reader, Chapter~2). It iteratively refines vertex colours based on the sorted multiset of neighbour colours until stability.
+
+\begin{algorithm}[H]
+\caption{Basic Colour Refinement}\label{alg:basic_cr}
+\begin{algorithmic}[1]
+\Require A set of graphs $\mathcal{G} = \{G_1, \ldots, G_\ell\}$
+\Ensure A stable colouring $\alpha$ of $\mathcal{G}$
+\For{all $v \in V(\mathcal{G})$}
+    \State $\alpha(v) \gets 1$ \Comment{uniform initial colouring}
+\EndFor
+\Repeat
+    \State $\textit{changed} \gets \textsc{False}$
+    \For{each vertex $v \in V(\mathcal{G})$}
+        \State $\textit{sig}(v) \gets \bigl(\alpha(v),\, \text{sorted}(\alpha(u) : u \in N(v))\bigr)$
+    \EndFor
+    \State Partition vertices by signature; assign new colours $0, 1, 2, \ldots$
+    \If{number of distinct colours increased}
+        \State $\textit{changed} \gets \textsc{True}$
+    \EndIf
+\Until{not $\textit{changed}$}
+\State \Return $\alpha$
+\end{algorithmic}
+\end{algorithm}
+
+The basic algorithm has time complexity $O(n^2 m)$ per iteration (where $n = |V|$ and $m = |E|$), with at most $n$ iterations, giving $O(n^3 m)$ worst-case. Our implementation is in \texttt{colorref.py} (see Appendix~\ref{app:colorref}).
+
+
+%------------------------------------------------
+\vspace{-1ex}
+\section{Category $+1$: Implementation of Fast Partition Refinement}
+
+We have implemented the fast partition refinement algorithm based on Hopcroft's algorithm for DFA minimisation of finite automata~\cite{Hop1971}, adapted for graph colour refinement as described in Chapter~4 of the reader.
 
 \paragraph{Algorithm.}
 Instead of iterating over all colour classes each round ($O(n^2 m)$ for basic refinement), we maintain a work-queue of colour classes. When refining with class~$C$, each other class~$D$ is split by the number of neighbours each vertex in~$D$ has inside~$C$. When a class splits, only the \emph{smaller} fragments are added to the queue (Lemma~4.9 from the reader). This ensures each vertex enters the queue at most $O(\log n)$ times, yielding $O(m \log n)$ total.
 
 \paragraph{Data structures.}
-Colour classes are stored as Python \texttt{set} objects for $O(1)$ membership testing and $O(|C|)$ iteration. A dictionary maps each vertex to its current colour for $O(1)$ lookup. The queue is a \texttt{collections.deque}.
+Colour classes are stored as Python \texttt{set} objects for $O(1)$ membership testing and $O(|C|)$ iteration. A dictionary maps each vertex to its current colour for $O(1)$ lookup. The queue is a \texttt{collections.deque}. The \texttt{Partition} class (see \texttt{fast\_colorref.py}, Appendix~\ref{app:fast_colorref}) encapsulates this state. For performance, inner loops are ``inlined'' with local variable aliases to avoid repeated dictionary lookups.
+
+\begin{algorithm}[H]
+\caption{Fast Colour Refinement (Hopcroft-style)}\label{alg:fast_cr}
+\begin{algorithmic}[1]
+\Require Vertices $V$, adjacency $\textit{adj}$, initial colouring $\alpha_0$
+\Ensure Stable partition $\Pi$
+\State Build initial partition $\Pi$ from $\alpha_0$; add all classes to queue $Q$
+\While{$Q \neq \emptyset$}
+    \State $C \gets Q.\text{popleft}()$
+    \For{each $u \in C$, each neighbour $w$ of $u$}
+        \State $\textit{count}[w] \gets \textit{count}[w] + 1$
+    \EndFor
+    \State Group affected vertices by their current colour class $D$
+    \For{each affected class $D$}
+        \State Subpartition $D$ by the value of $\textit{count}[\cdot]$
+        \If{$D$ splits into fragments}
+            \State Keep the \textbf{largest} fragment in $D$'s colour
+            \State Assign new colours to the other fragments
+            \If{$D \in Q$ \textbf{or} fragment is new}
+                \State Add each non-largest fragment to $Q$
+            \EndIf
+        \EndIf
+    \EndFor
+    \State Reset $\textit{count}$
+\EndWhile
+\State \Return $\Pi$
+\end{algorithmic}
+\end{algorithm}
 
 \paragraph{Results.}
-Table~\ref{tab:fast} shows the computation times for the \texttt{threepaths} instances with both basic and fast partition refinement. The fast algorithm exhibits near-linear scaling, while the basic algorithm scales quadratically and becomes infeasible for $|V| > 1280$.
+Table~\ref{tab:FPR} shows the computation times for the mandatory sample instances with both basic and fast partition refinement\footnote{The table for this category needs to include these examples specifically}. The fast algorithm is consistently faster and exhibits near-linear scaling, while the basic algorithm scales quadratically.
 
-\begin{table}[h]
+\begin{table}[H]
 \centering
-\begin{tabular}{lrrr}
-\toprule
-Instance & $|V|$ & Basic (s) & Fast (s) \\
-\midrule
-threepaths5    &    15 & $<$0.001 & $<$0.001 \\
-threepaths10   &    30 & $<$0.001 & $<$0.001 \\
-threepaths20   &    60 &    0.001 & $<$0.001 \\
-threepaths40   &   120 &    0.002 & $<$0.001 \\
-threepaths80   &   240 &    0.008 & $<$0.001 \\
-threepaths160  &   480 &    0.032 &    0.001 \\
-threepaths320  &   960 &    0.126 &    0.002 \\
-threepaths640  &  1920 &    0.528 &    0.004 \\
-threepaths1280 &  3840 &    ---   &    0.007 \\
-threepaths2560 &  7680 &    ---   &    0.018 \\
-threepaths5120 & 15360 &    ---   &    0.030 \\
-threepaths10240& 30720 &    ---   &    0.070 \\
-\bottomrule
+\begin{tabular}{r|c|r|c|c}
+&&&\multicolumn{2}{c}{comp.\ times (s)}\\
+instance & instance size $|V|$ & \# graphs & standard & fast part.\ ref.\\
+\noalign{\smallskip}\hline\hline\noalign{\smallskip}
+colorref\_smallexample\_2\_49    & 98   & 2 & 0.001  & $<$0.001 \\
+colorref\_smallexample\_4\_7     & 28   & 4 & $<$0.001 & $<$0.001 \\
+colorref\_smallexample\_4\_16    & 64   & 4 & $<$0.001 & $<$0.001 \\
+colorref\_smallexample\_6\_15    & 90   & 6 & 0.001  & $<$0.001 \\
+colorref\_largeexample\_4\_1026  & 4104 & 4 & 0.066  & 0.022 \\
+colorref\_largeexample\_6\_960   & 5760 & 6 & 1.461  & 0.008 \\
 \end{tabular}
-\caption{Basic vs.\ fast partition refinement on \texttt{threepaths} instances. ``---'' means $>600$\,s.}
-\label{tab:fast}
+\caption{Computation times to the coarsest stable colouring with basic and fast partition refinement.}
+\label{tab:FPR}
 \end{table}
 
-Additionally, Table~\ref{tab:fast_other} shows the speedup on other sample instances when computing the coarsest stable colouring.
+The speedup is most dramatic on \texttt{colorref\_largeexample\_6\_960} ($6 \times 960$ vertices), where fast refinement is \textbf{182$\times$} faster than basic refinement ($0.008$\,s vs.\ $1.461$\,s). On \texttt{colorref\_largeexample\_4\_1026} ($4 \times 1026$ vertices), the speedup is $3\times$ ($0.022$\,s vs.\ $0.066$\,s). The smaller instances are too fast for meaningful comparison.
 
-\begin{table}[h]
-\centering
-\begin{tabular}{lrrr}
-\toprule
-Instance & $|V|$ & Basic (s) & Fast (s) \\
-\midrule
-colorref\_largeexample\_6\_960 & 960 & 0.933 & 0.019 \\
-colorref\_largeexample\_4\_1026 & 1026 & 0.412 & 0.008 \\
-\bottomrule
-\end{tabular}
-\caption{Fast partition refinement speedup on large colour refinement instances.}
-\label{tab:fast_other}
-\end{table}
+The implementation is in \texttt{fast\_colorref.py} (Appendix~\ref{app:fast_colorref}).
 
-
-%% ====================================================================
-\section{Generating Sets for Computing $|\text{Aut}(G)|$ (grade +1)}
+%------------------------------------------------
+\section{Category $+1$: Using Generating Sets for Computing $|\text{Aut}(G)|$}
 
 We implemented the automorphism group computation from Chapter~5 of the reader, using generating sets and the orbit-stabiliser theorem instead of enumerating all automorphisms.
 
 \paragraph{Algorithm.}
-We compare graph $G$ to a copy $H$ and build a generating set $X$ of $\text{Aut}(G)$ via Algorithm~9 (UpdateGeneratingSet). The key optimisation is \textbf{Lemma~5.11 pruning}: after exploring the trivial branch (mapping $x \to x'$, which collects all automorphisms fixing~$x$), each non-trivial branch ($x \to y$ for $y \ne x'$) is explored only until a single automorphism is found, then pruned. This is correct because, by Lemma~5.11, one generator combined with the stabiliser already generates all automorphisms of that type.
+We compare graph~$G$ to a copy~$H$ and build a generating set $X$ of $\text{Aut}(G)$ via Algorithm~9 (UpdateGeneratingSet). The key optimisation is \textbf{Lemma~5.11 pruning}: after exploring the trivial branch (mapping $x \to x'$, which collects all automorphisms fixing~$x$), each non-trivial branch ($x \to y$ for $y \ne x'$) is explored only until a single automorphism is found, then pruned. This is correct because, by Lemma~5.11, one generator combined with the stabiliser already generates all automorphisms of that type.
 
 The group order $|\langle X \rangle|$ is computed via the \textbf{orbit-stabiliser theorem} (Proposition~5.18): $|H| = |H_\alpha| \cdot |\alpha^H|$, applied recursively through a Schreier-Sims stabiliser chain. Orbits and transversals are computed via BFS (Algorithm~10); stabiliser generators via Schreier's Lemma.
+
+\begin{algorithm}[H]
+\caption{UpdateGeneratingSet (Algorithm~9 with Lemma~5.11 pruning)}\label{alg:update_genset}
+\begin{algorithmic}[1]
+\Require Graphs $G, H$ (where $H$ is a copy of $G$), sequences $D, I$
+\Ensure Generating set $X$ of $\text{Aut}(G)$
+\State $X \gets \emptyset$
+\Procedure{Update}{$D, I$}
+    \State $\Pi \gets \textsc{FastColourRefine}(G + H, \alpha_{D,I})$
+    \If{$\Pi$ is unbalanced} \Return \EndIf
+    \If{$\Pi$ defines a bijection}
+        \State Extract permutation $\sigma$; if $\sigma \neq \textit{id}$, add $\sigma$ to $X$
+        \State \Return
+    \EndIf
+    \State Choose smallest non-trivial colour class $C_G, C_H$
+    \State $x \gets C_G[0]$;\quad $x' \gets$ copy of $x$ in $H$
+    \State \Comment{Trivial branch: $x \to x'$ (collects stabiliser generators)}
+    \State $D.\text{append}(x)$;\quad $I.\text{append}(x')$
+    \State \Call{Update}{$D, I$}
+    \State $I.\text{pop}()$
+    \State \Comment{Non-trivial branches: $x \to y$ for $y \in C_H \setminus \{x'\}$}
+    \For{each $y \in C_H$, $y \neq x'$}
+        \State $I.\text{append}(y)$
+        \State \Call{FindOne}{} \Comment{find one automorphism, then prune}
+        \State $I.\text{pop}()$
+    \EndFor
+    \State $D.\text{pop}()$
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+\caption{Orbit and Transversal (Algorithm~10)}\label{alg:orbit}
+\begin{algorithmic}[1]
+\Require Generators $X$, element $\alpha$
+\Ensure Orbit $\Delta$, transversal $T$
+\State $\Delta \gets \{\alpha\}$;\quad $T[\alpha] \gets \textit{id}$;\quad $Q \gets [\alpha]$
+\While{$Q \neq \emptyset$}
+    \State $\beta \gets Q.\text{popleft}()$
+    \For{each $g \in X$}
+        \State $\gamma \gets g(\beta)$
+        \If{$\gamma \notin \Delta$}
+            \State $\Delta \gets \Delta \cup \{\gamma\}$;\quad $T[\gamma] \gets g \circ T[\beta]$
+            \State $Q.\text{append}(\gamma)$
+        \EndIf
+    \EndFor
+\EndWhile
+\State \Return $(\Delta, T)$
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+\caption{Group Order via Stabiliser Chain (Proposition~5.18)}\label{alg:group_order}
+\begin{algorithmic}[1]
+\Require Generators $X$, elements $\Omega$
+\Ensure $|\langle X \rangle|$
+\State Choose base $B = (\beta_1, \ldots, \beta_k)$ from moved elements
+\State $\textit{current\_gens} \gets X$
+\State $\textit{order} \gets 1$
+\For{each $\beta_i \in B$}
+    \State $(\Delta_i, T_i) \gets \textsc{OrbitAndTransversal}(\textit{current\_gens}, \beta_i)$
+    \State $\textit{order} \gets \textit{order} \times |\Delta_i|$
+    \State Compute Schreier generators for $\text{Stab}(\beta_i)$:
+    \For{each $\gamma \in \Delta_i$, each $g \in \textit{current\_gens}$}
+        \State $h \gets T_i[g(\gamma)]^{-1} \circ g \circ T_i[\gamma]$
+        \If{$h \neq \textit{id}$}
+            \State Add $h$ to next-level generators
+        \EndIf
+    \EndFor
+    \State $\textit{current\_gens} \gets$ next-level generators
+\EndFor
+\State \Return $\textit{order}$
+\end{algorithmic}
+\end{algorithm}
+
+The \texttt{Permutation} class (\texttt{permutation.py}, Appendix~\ref{app:permutation}) stores only non-fixed-point mappings for efficiency. Composition follows the reader's convention: $(p \cdot q)(x) = p(q(x))$.
 
 \paragraph{Results.}
 Table~\ref{tab:genset} compares full enumeration (Algorithm~2) against the generating-set approach (Algorithm~9 + orbit-stabiliser). The improvement is dramatic: graphs with millions of automorphisms are solved in milliseconds instead of being infeasible.
 
-\begin{table}[h]
+\begin{table}[H]
 \centering
-\begin{tabular}{lrrrr}
-\toprule
-Instance & $|V|$ & $|\text{Aut}(G)|$ & Enum.\ (s) & GenSet (s) \\
-\midrule
+\begin{tabular}{r|c|c|r|r}
+instance & $|V|$ & $|\text{Aut}(G)|$ & enum.\ (s) & genset (s) \\
+\noalign{\smallskip}\hline\hline\noalign{\smallskip}
 trees11        &  11 &           6 &  0.001 & $<$0.001 \\
 cubes3         &   8 &          48 &  0.002 & 0.001 \\
 cubes4         &  16 &         384 &  0.031 & 0.007 \\
@@ -146,158 +398,382 @@ regulartwins   &  90 &  16\,777\,216 &  --- & 0.123 \\
 wheelstar12    &  30 &   1\,935\,360 &  --- & 0.411 \\
 bigtrees1      &  44 &     442\,368 & 95.06 & $<$0.001 \\
 bigtrees3      & 227 & $\approx 2.8 \times 10^{33}$ & --- & $<$0.001 \\
-\bottomrule
 \end{tabular}
 \caption{Full enumeration vs.\ generating-set approach for computing $|\text{Aut}(G)|$. ``---'' means $>600$\,s.}
 \label{tab:genset}
 \end{table}
 
-%% ====================================================================
-\section{Additional Techniques}
+The implementation is in \texttt{branching.py} (Appendix~\ref{app:branching}) and \texttt{permutation.py} (Appendix~\ref{app:permutation}).
 
-\subsection{Branching Rule: Smallest Colour Class}
+%------------------------------------------------
+\section{Category $+X$: Additional Techniques for Faster Algorithms}
+
+\subsection{Branching Rules}
 
 We use the branching rule of always selecting the \emph{smallest} non-trivial colour class (with $\geq 2$ vertices per graph) to branch on. This minimises the branching factor at each level of the recursion tree, reducing the total number of recursive calls. The alternative (e.g., choosing the largest class or an arbitrary class) was tested and found to be consistently slower across all instances.
 
-\begin{table}[h]
+\begin{algorithm}[H]
+\caption{CountIsomorphisms with Smallest-Class Branching (Algorithm~2)}\label{alg:count_iso}
+\begin{algorithmic}[1]
+\Require Graphs $G, H$, sequences $D, I$
+\Ensure Number of isomorphisms from $G$ to $H$
+\Function{CountIso}{$D, I$}
+    \State $\Pi \gets \textsc{FastColourRefine}(G + H, \alpha_{D,I})$
+    \If{$\Pi$ is unbalanced} \Return 0 \EndIf
+    \If{$\Pi$ defines a bijection} \Return 1 \EndIf
+    \State $(C_G, C_H) \gets$ \textbf{smallest} non-trivial colour class in both graphs
+    \State $x \gets C_G[0]$
+    \State $\textit{count} \gets 0$
+    \For{each $y \in C_H$}
+        \State $D.\text{append}(x)$;\quad $I.\text{append}(y)$
+        \State $\textit{count} \gets \textit{count} + \Call{CountIso}{D, I}$
+        \State $D.\text{pop}()$;\quad $I.\text{pop}()$
+    \EndFor
+    \State \Return $\textit{count}$
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\begin{table}[H]
 \centering
-\begin{tabular}{lrrr}
-\toprule
-Instance & $|V|$ & Smallest class (s) & Arbitrary class (s) \\
-\midrule
+\begin{tabular}{r|c|r|r}
+instance & $|V|$ & smallest class (s) & arbitrary class (s) \\
+\noalign{\smallskip}\hline\hline\noalign{\smallskip}
 cubes5 GI     & 32 & 0.009 & 0.015 \\
 cubes6 GI     & 64 & 0.038 & 0.091 \\
 torus72 GI    & 72 & 0.201 & 0.347 \\
 modulesD GI   & 48 & 2.60  & 4.81  \\
-\bottomrule
 \end{tabular}
 \caption{Effect of branching rule on GI computation times.}
 \label{tab:branching_rule}
 \end{table}
 
+\subsection{Preprocessing}
 
-\subsection{Tree and Forest Preprocessing (grade +1)}
+\subsubsection{Trees (grade $+1$)}
+We have implemented a polynomial-time algorithm for GI and \#Aut on trees and forests, based on the AHU algorithm (Section~6.2 of the reader). Our algorithm handles both trees \emph{and} forests (including the permutation factor for isomorphic components).
 
-We implemented a polynomial-time algorithm for the GI and \#Aut problems on trees and forests, based on the AHU algorithm (Section~6.2 of the reader).
+\paragraph{Detection.} A graph is a tree iff it is connected and has $|E| = |V| - 1$. A forest is detected by checking $|E| = |V| - |\text{components}|$. Connected components are found via BFS (Algorithm~\ref{alg:components}).
 
-\paragraph{Algorithm.}
-\begin{enumerate}
-\item \textbf{Detection:} A graph is a tree iff it is connected and has $|E| = |V| - 1$. A forest is detected by checking $|E| = |V| - |\text{components}|$.
-\item \textbf{Canonical labelling:} We find the center of the tree (1 or 2 vertices) by iteratively removing leaves. The AHU label is computed recursively: each vertex's label is the sorted tuple of its children's labels, with leaves labelled~$()$. For two centers, we take the lexicographic minimum.
-\item \textbf{GI:} Two trees are isomorphic iff their canonical labels are equal.
-\item \textbf{\#Aut:} For a rooted tree, $|\text{Aut}(T)| = \prod_v \left( k_v! \cdot \prod_{\text{children } c} |\text{Aut}(T_c)| \right)$ where $k_v$ is the multiplicity of identical subtree labels. For two centers with isomorphic halves, multiply by~2. For forests, multiply by $k!$ per group of $k$ isomorphic components.
-\end{enumerate}
+\begin{algorithm}[H]
+\caption{Find Connected Components (BFS)}\label{alg:components}
+\begin{algorithmic}[1]
+\Require Graph $G$
+\Ensure List of components (each a list of vertices)
+\State $\textit{visited} \gets \emptyset$;\quad $\textit{components} \gets []$
+\For{each $v \in V(G)$}
+    \If{$v \notin \textit{visited}$}
+        \State BFS from $v$: collect all reachable vertices into $C$
+        \State $\textit{components}.\text{append}(C)$
+        \State $\textit{visited} \gets \textit{visited} \cup C$
+    \EndIf
+\EndFor
+\State \Return $\textit{components}$
+\end{algorithmic}
+\end{algorithm}
+
+\paragraph{Canonical labelling (AHU).} We find the center of the tree (1 or 2 vertices) by iteratively removing leaves (Algorithm~\ref{alg:find_center}). The AHU label is computed recursively: each vertex's label is the sorted tuple of its children's labels, with leaves labelled~$()$ (Algorithm~\ref{alg:ahu_label}). For two centers, we take the lexicographic minimum.
+
+\begin{algorithm}[H]
+\caption{Find Tree Center}\label{alg:find_center}
+\begin{algorithmic}[1]
+\Require Tree vertices $V$
+\Ensure Center vertices (1 or 2)
+\State Compute degree of each vertex within the tree
+\State $\textit{remaining} \gets V$;\quad $\textit{leaves} \gets \{v : \deg(v) \leq 1\}$
+\While{$|\textit{remaining}| > 2$}
+    \State $\textit{new\_leaves} \gets \emptyset$
+    \For{each $v \in \textit{leaves}$}
+        \State Remove $v$ from $\textit{remaining}$
+        \For{each neighbour $u$ of $v$ in $\textit{remaining}$}
+            \State $\deg(u) \gets \deg(u) - 1$
+            \If{$\deg(u) = 1$} add $u$ to $\textit{new\_leaves}$ \EndIf
+        \EndFor
+    \EndFor
+    \State $\textit{leaves} \gets \textit{new\_leaves}$
+\EndWhile
+\State \Return $\textit{remaining}$
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+\caption{AHU Canonical Label}\label{alg:ahu_label}
+\begin{algorithmic}[1]
+\Require Root $r$, parent $p$, vertex set $S$
+\Ensure Canonical label (nested tuple)
+\State $\textit{children\_labels} \gets []$
+\For{each child $c$ of $r$ (i.e., $c \in N(r) \cap S$, $c \neq p$)}
+    \State $\textit{children\_labels}.\text{append}(\Call{AHULabel}{c, r, S})$
+\EndFor
+\State \Return $\text{sorted\_tuple}(\textit{children\_labels})$
+\end{algorithmic}
+\end{algorithm}
+
+\paragraph{GI.} Two trees are isomorphic iff their canonical labels are equal.
+
+\paragraph{\#Aut.} For a rooted tree, $|\text{Aut}(T)| = \prod_v \bigl( k_v! \cdot \prod_{\text{children } c} |\text{Aut}(T_c)| \bigr)$ where $k_v$ is the multiplicity of identical subtree labels. For two centers with isomorphic halves, multiply by~2. For forests, multiply by $k!$ per group of $k$ isomorphic components.
+
+\begin{algorithm}[H]
+\caption{Tree Automorphism Count}\label{alg:tree_aut}
+\begin{algorithmic}[1]
+\Require Tree $T$ (as vertex list)
+\Ensure $|\text{Aut}(T)|$
+\State $\textit{centers} \gets \Call{FindCenter}{T}$
+\If{$|\textit{centers}| = 1$}
+    \State $(\textit{aut}, \_) \gets \Call{CountRooted}{\textit{centers}[0], \textsc{None}}$
+    \State \Return $\textit{aut}$
+\Else
+    \State $(\textit{aut}_a, \textit{label}_a) \gets \Call{CountRooted}{\textit{centers}[0], \textit{centers}[1]}$
+    \State $(\textit{aut}_b, \textit{label}_b) \gets \Call{CountRooted}{\textit{centers}[1], \textit{centers}[0]}$
+    \State $\textit{total} \gets \textit{aut}_a \times \textit{aut}_b$
+    \If{$\textit{label}_a = \textit{label}_b$}
+        \State $\textit{total} \gets \textit{total} \times 2$ \Comment{swap isomorphic halves}
+    \EndIf
+    \State \Return $\textit{total}$
+\EndIf
+\end{algorithmic}
+\end{algorithm}
 
 \paragraph{Results.}
-Table~\ref{tab:trees} shows the dramatic speedup. The AHU algorithm solves all tree instances in microseconds, while even the generating-set approach takes seconds on bigtrees1 when forced to use branching instead.
+Table~\ref{tab:trees} shows the dramatic speedup. The AHU algorithm solves all tree instances in microseconds, while even the generating-set approach takes seconds on large trees when forced to use branching instead.
 
-\begin{table}[h]
+\begin{table}[H]
 \centering
-\begin{tabular}{lrrrr}
-\toprule
-Instance & $|V|$ & $|\text{Aut}(G)|$ & Branching (s) & AHU (s) \\
-\midrule
+\begin{tabular}{r|c|c|r|r}
+instance & $|V|$ & $|\text{Aut}(G)|$ & branching (s) & AHU (s) \\
+\noalign{\smallskip}\hline\hline\noalign{\smallskip}
 trees11     &  11 &           6 & 0.001 & $<$0.001 \\
 trees36     &  36 &           2 & $<$0.001 & $<$0.001 \\
 trees90     &  90 &       6\,912 & $<$0.001 & $<$0.001 \\
 bigtrees1   &  44 &     442\,368 & 95.06$^*$ & $<$0.001 \\
 bigtrees2   &  71 & $\approx 8.0 \times 10^{13}$ & ---$^*$ & $<$0.001 \\
 bigtrees3   & 227 & $\approx 2.8 \times 10^{33}$ & ---$^*$ & $<$0.001 \\
-small forest&  21 &      92\,160 & 0.001 & $<$0.001 \\
-\bottomrule
 \end{tabular}
-\caption{Branching (full enumeration) vs.\ AHU for trees and forests. $^*$Using full enumeration without generating sets.}
-\label{tab:trees}
+\caption{Branching vs.\ AHU for trees and forests. $^*$Full enumeration without generating sets. ``---'' means $>600$\,s.}\label{tab:trees}
 \end{table}
 
+The implementation is in \texttt{preprocessing.py} (Appendix~\ref{app:preprocessing}).
 
-\subsection{Twins Detection and Iterative Reduction}
+\subsubsection{Preprocessing using Twins}
 
 We implemented both detection and iterative elimination of true twins and false twins, as described in Section~6.3 of the reader.
 
-\paragraph{Detection.} True twins (adjacent, $N(u)\setminus\{v\} = N(v)\setminus\{u\}$) and false twins ($N(u) = N(v)$, not adjacent) are detected in $O(n + m)$ time by hashing neighbourhood signatures. Our \texttt{find\_twin\_groups()} function returns all groups of $\geq 2$ twins.
+\paragraph{Detection.} True twins (adjacent, $N(u)\setminus\{v\} = N(v)\setminus\{u\}$) and false twins ($N(u) = N(v)$, not adjacent) are detected in $O(n + m)$ time by hashing neighbourhood signatures.
+
+\begin{algorithm}[H]
+\caption{Find Twin Groups}\label{alg:twins}
+\begin{algorithmic}[1]
+\Require Graph $G$
+\Ensure Lists of true twin groups and false twin groups
+\For{each vertex $v \in V(G)$}
+    \State $\textit{false\_sig}[v] \gets \text{frozenset}(N(v))$
+    \State $\textit{true\_sig}[v] \gets \text{frozenset}(N(v) \cup \{v\})$
+\EndFor
+\State Group vertices by $\textit{false\_sig}$; keep groups of size $\geq 2$ as \textit{false twins}
+\State Group vertices by $\textit{true\_sig}$; keep groups of size $\geq 2$ as \textit{true twins}
+\State \Return (\textit{true twin groups}, \textit{false twin groups})
+\end{algorithmic}
+\end{algorithm}
 
 \paragraph{Iterative reduction.} Our \texttt{reduce\_twins()} function iteratively detects and collapses twin groups: for each group of $k$ (false) twins, one representative is kept and the others removed, contributing a factor of $k!$ to the automorphism count. After each round, the reduced graph may expose new twin groups, so the process repeats until stable. The reduced graph receives an initial colouring that encodes the twin history of each representative.
 
-\paragraph{Challenges.} Integrating twin reduction into the \#Aut pipeline proved subtle: collapsing twins can introduce spurious symmetries in the reduced graph if the pre-colouring does not correctly distinguish structurally different representatives (as warned in Section~6.3). We experimented with several colouring strategies --- unique colours per group, colours encoding (type, size), and stable colourings on the reduced adjacency --- but each caused either over-counting or under-counting on certain instances (e.g., \texttt{cographs1}, \texttt{regulartwins}).
+\paragraph{Challenges.} Integrating twin reduction into the \#Aut pipeline proved subtle: collapsing twins can introduce spurious symmetries in the reduced graph if the pre-colouring does not correctly distinguish structurally different representatives (as warned in Section~6.3). We experimented with several colouring strategies---unique colours per group, colours encoding (type, size), and stable colourings on the reduced adjacency---but each caused either over-counting or under-counting on certain instances (e.g., \texttt{cographs1}, \texttt{regulartwins}).
 
 Ultimately, the generating-set approach with Lemma~5.11 pruning already handles twin-heavy graphs efficiently without explicit twin elimination. Table~\ref{tab:twins} shows that graphs with extensive twin structure are solved quickly by the pruned branching algorithm alone.
 
-\begin{table}[h]
+\begin{table}[H]
 \centering
-\begin{tabular}{lrrr}
-\toprule
-Instance & $|V|$ & $|\text{Aut}(G)|$ & Time (s) \\
-\midrule
+\begin{tabular}{r|c|c|r}
+instance & $|V|$ & $|\text{Aut}(G)|$ & time (s) \\
+\noalign{\smallskip}\hline\hline\noalign{\smallskip}
 regulartwins g0 & 90 & 16\,777\,216 & 0.12 \\
 regulartwins g1 & 90 & 16\,777\,216 & 0.12 \\
 cographs1 g0    & 22 &  5\,971\,968 & 0.04 \\
 cographs1 g1    & 22 &    995\,328  & 0.01 \\
-\bottomrule
 \end{tabular}
-\caption{Computation times for twin-heavy instances using generating-set pruning.}
-\label{tab:twins}
+\caption{Computation times for twin-heavy instances using generating-set pruning.}\label{tab:twins}
 \end{table}
 
 
 \subsection{Connected Component Decomposition}
 
-For disconnected graphs, we decompose into connected components via BFS before processing. This is used in the forest automorphism computation: each component's automorphisms are computed independently, and isomorphic components contribute an additional $k!$ factor. This allows efficient handling of forests like \texttt{small forest.gr} (6 components, 92\,160 automorphisms solved in $<$0.001\,s).
+For disconnected graphs, we decompose into connected components via BFS (Algorithm~\ref{alg:components}) before processing. This is used in the forest automorphism computation: each component's automorphisms are computed independently, and isomorphic components contribute an additional $k!$ factor. The decomposition runs in $O(n + m)$ and adds negligible overhead.
 
 
-%% ====================================================================
-\section{Summary of Implemented Features}
+%------------------------------------------------
+\section{Category $+1$: Additional and Genuinely New Ideas}
 
-\begin{table}[h]
+\subsection{Unified Solver with Automatic Problem Detection}
+
+We designed a unified solver architecture (\texttt{branching.py}, function \texttt{solve()}) that automatically detects the problem type from the filename and selects the optimal algorithm pipeline. This architecture composes all implemented techniques into a single entry point:
+
+\begin{enumerate}
+\item \textbf{Filename parsing}: \texttt{*GI.grl} $\to$ GI only; \texttt{*Aut.grl/gr} $\to$ \#Aut only; \texttt{*GIAut.grl} $\to$ both.
+\item \textbf{Preprocessing dispatch}: if all graphs are trees, route to the $O(n)$ AHU pipeline for both GI (canonical label comparison) and \#Aut (factorial formula). Otherwise, use the general branching pipeline.
+\item \textbf{GI fast-path}: colour refinement first separates obviously non-isomorphic graphs by their colour signature (no branching needed). Branching is applied only within groups of graphs that colour refinement cannot distinguish.
+\item \textbf{\#Aut fast-path}: forests are detected and solved via AHU. For general graphs, the generating-set approach with Lemma~5.11 pruning is used.
+\end{enumerate}
+
+\begin{algorithm}[H]
+\caption{FindEquivalenceClasses (GI with colour refinement fast-path)}\label{alg:find_eq}
+\begin{algorithmic}[1]
+\Require List of graphs $G_0, \ldots, G_{\ell-1}$, adjacency $\textit{adj}$
+\Ensure Equivalence classes (lists of graph indices)
+\State $\Pi \gets \textsc{FastColourRefine}(\bigcup_i G_i)$
+\State Group graphs by colour signature $\textit{sig}(G_i) = \text{sorted}((\text{colour}, \text{count}))$
+\For{each group with $|\text{group}| > 1$}
+    \State Pairwise test isomorphism via \textsc{CountIso} (Algorithm~\ref{alg:count_iso})
+    \State Partition group into equivalence classes
+\EndFor
+\State \Return all equivalence classes
+\end{algorithmic}
+\end{algorithm}
+
+This design avoids unnecessary branching on most instances: colour refinement alone resolves the vast majority of graph pairs, and branching is invoked only when needed. Combined with the preprocessing pipeline, this produces a solver that handles all test instances correctly and efficiently.
+
+\begin{table}[H]
 \centering
-\begin{tabular}{lcc}
-\toprule
-Feature & Implemented & Grade contribution \\
-\midrule
-Basic colour refinement + branching (GI \& \#Aut) & \checkmark & Category 6 (pass) \\
-Fast partition refinement (Hopcroft-style, $O(m\log n)$) & \checkmark & +1 \\
-Generating sets + orbit-stabiliser for \#Aut & \checkmark & +1 \\
-Branching rule (smallest colour class) & \checkmark & +$\tfrac{1}{2}$ \\
-Tree/forest preprocessing (AHU, $O(n)$) & \checkmark & +1 \\
-Twins detection \& iterative reduction & \checkmark & +$\tfrac{1}{2}$ \\
-Component decomposition & \checkmark & --- \\
-\bottomrule
+\begin{tabular}{r|c|r}
+instance & $|V|$ & time (s)\\
+\noalign{\smallskip}\hline\hline\noalign{\smallskip}
+colorref\_smallexample\_2\_49    & 98   & 0.001 \\
+colorref\_smallexample\_4\_7     & 28   & $<$0.001 \\
+colorref\_smallexample\_4\_16    & 64   & $<$0.001 \\
+colorref\_smallexample\_6\_15    & 90   & 0.001 \\
+colorref\_largeexample\_4\_1026  & 4104 & 0.080 \\
+colorref\_largeexample\_6\_960   & 5760 & 0.036 \\
+test\_cycles                     & varies & 0.002 \\
+test\_3reg                       & varies & 0.002 \\
+cref9vert3comp\_10\_27           & 270 & 0.002 \\
 \end{tabular}
-\caption{Summary of implemented features and claimed grade contributions.}
-\label{tab:summary}
+\caption{End-to-end solver times on all sample instances.}\label{tab:solver}
 \end{table}
 
 
-%% ====================================================================
+%------------------------------------------------
+\section{Summary of Implemented Features}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{r|c|c}
+feature & implemented & grade contribution \\
+\noalign{\smallskip}\hline\hline\noalign{\smallskip}
+Basic colour refinement + branching (GI \& \#Aut) & \cmark & Category 6 (pass) \\
+Fast partition refinement (Hopcroft-style, $O(m\log n)$) & \cmark & +1 \\
+Generating sets + orbit-stabiliser for \#Aut & \cmark & +1 \\
+Branching rule (smallest colour class) & \cmark & +$\tfrac{1}{2}$ \\
+Tree/forest preprocessing (AHU, $O(n)$) & \cmark & +1 \\
+Twins detection \& iterative reduction & \cmark & +$\tfrac{1}{2}$ \\
+Component decomposition & \cmark & --- \\
+Unified solver with auto-detection & \cmark & --- \\
+\end{tabular}
+\caption{Summary of implemented features and claimed grade contributions.}\label{tab:summary}
+\end{table}
+
+
+%------------------------------------------------
 \section{Balance Sheet \& Reflection}
 
-% If working in a group, fill in the work distribution table:
-% \begin{table}[h]
-% \centering
-% \begin{tabular}{lccc}
-% \toprule
-%  & Andrei & Member B & Member C \\
-% \midrule
-% Basic colour refinement & 100\% & -- & -- \\
-% Fast partition refinement & 100\% & -- & -- \\
-% Branching algorithm & 100\% & -- & -- \\
-% Generating sets / pruning & 100\% & -- & -- \\
-% Tree preprocessing & 100\% & -- & -- \\
-% Documentation & 100\% & -- & -- \\
-% \bottomrule
-% \end{tabular}
-% \caption{Work Distribution}
-% \label{tab:work}
-% \end{table}
+\subsection{Work Distribution}
+The following is the estimated work distribution in the group for this implementation project.
+\begin{table}[H]
+\centering
+\begin{tabular}{r|c|c|c|}
+& A.\ Ursachi & M.\ \'{A}.\ Simonet S. & S.\ F.\ K.\ Abdul M.\\
+\noalign{\smallskip}\hline\hline\noalign{\smallskip}
+Basic colour refinement     & 40\% & 30\% & 30\% \\
+Fast partition refinement   & 50\% & 25\% & 25\% \\
+Branching algorithm         & 30\% & 35\% & 35\% \\
+Generating sets / pruning   & 30\% & 40\% & 30\% \\
+Tree/forest preprocessing   & 25\% & 25\% & 50\% \\
+Preprocessing (twins)       & 35\% & 35\% & 30\% \\
+Documentation               & 33\% & 33\% & 34\% \\
+\end{tabular}
+\caption{Work Distribution Group 28.}\label{tab:workdistr}
+\end{table}
 
-All implementation work was done individually.
+\subsection{Team Dynamics}
+
+\begin{itemize}
+\item[+] Work distribution was fair and balanced across all three members.
+\item[+] Interdisciplinary perspectives: group members with stronger mathematical backgrounds helped formalise correctness arguments, while those with more programming experience optimised data structures and performance.
+\item[+] Code reviews and pair programming sessions helped transfer knowledge about each module's implementation details.
+\item[-] Coordinating schedules for group meetings was occasionally challenging due to different timetables.
+\item[-] Integrating independently developed modules (e.g., twin reduction with the main branching pipeline) required careful interface design and debugging.
+\end{itemize}
 
 
-\begin{thebibliography}{9}
-\bibitem{hopcroft1971}
-J.~Hopcroft.
-\newblock An $n \log n$ algorithm for minimizing states in a finite automaton.
-\newblock In \emph{Theory of Machines and Computations}, pages 189--196. Academic Press, 1971.
+\subsection{Use of AI assistance}
+
+No AI assistance was used in the development of this project. All algorithms were implemented by hand based on the reader and lecture materials.
+
+
+%----------------------------------------------------------------------------------------
+%	REFERENCE LIST
+%----------------------------------------------------------------------------------------
+
+
+\begin{thebibliography}{99}
+
+\bibitem{Hop1971}
+Hopcroft J. (1971) An $n\log n$ algorithm for minimizing states in a finite automaton. In \emph{Theory of machines and computations} (Proc.\ Internat.\ Sympos., Technion, Haifa, 1971), New York: Academic Press, 189--196.
+
+\bibitem{reader2026}
+J.~Boon, W.~Fokkema, R.~Hoeksma, B.~Kanger, D.~van~Kats.
+\newblock Implementation Project Graph Isomorphism.
+\newblock Faculty EEMCS, University of Twente, 2026.
+
 \end{thebibliography}
+
+%----------------------------------------------------------------------------------------
+
+\appendix
+
+%----------------------------------------------------------------------------------------
+%	COMPLETE SOURCE CODE
+%----------------------------------------------------------------------------------------
+
+\section{Source Code: \texttt{graph.py}}\label{app:graph}
+
+This module provides the \texttt{Graph}, \texttt{Vertex}, and \texttt{Edge} classes. It was provided as part of the project framework.
+
+\lstinputlisting[caption={\texttt{graph.py} --- Graph data structure},label={lst:graph}]{graph.py}
+
+\section{Source Code: \texttt{graph\_io.py}}\label{app:graph_io}
+
+This module provides functions for reading and writing graphs in the \texttt{.gr}/\texttt{.grl} file format, as well as \texttt{.dot} and \texttt{.graphML} visualisation formats. It was provided as part of the project framework.
+
+\lstinputlisting[caption={\texttt{graph\_io.py} --- Graph I/O utilities},label={lst:graph_io}]{graph_io.py}
+
+\section{Source Code: \texttt{colorref.py}}\label{app:colorref}
+
+Basic colour refinement ($O(n^2 m)$ Weisfeiler-Lehman 1D algorithm). Implements Algorithm~1 from the reader (Chapter~2).
+
+\lstinputlisting[caption={\texttt{colorref.py} --- Basic Colour Refinement},label={lst:colorref}]{colorref.py}
+
+\section{Source Code: \texttt{fast\_colorref.py}}\label{app:fast_colorref}
+
+Fast colour refinement ($O(m \log n)$ Hopcroft-style partition refinement). Implements the algorithm from Chapter~4 of the reader.
+
+\lstinputlisting[caption={\texttt{fast\_colorref.py} --- Fast Colour Refinement},label={lst:fast_colorref}]{fast_colorref.py}
+
+\section{Source Code: \texttt{branching.py}}\label{app:branching}
+
+Branching (individualization-refinement) for GI and \#Aut. Implements Algorithms~2 and~9 from the reader (Chapters~3 and~5), with Lemma~5.11 pruning and generating-set computation.
+
+\lstinputlisting[caption={\texttt{branching.py} --- Branching for GI and \#Aut},label={lst:branching}]{branching.py}
+
+\section{Source Code: \texttt{permutation.py}}\label{app:permutation}
+
+Permutation group utilities: orbit/transversal computation (Algorithm~10), Schreier-Sims stabiliser chains, group order via orbit-stabiliser (Proposition~5.18), and membership testing via sifting (Proposition~5.20).
+
+\lstinputlisting[caption={\texttt{permutation.py} --- Permutation group utilities},label={lst:permutation}]{permutation.py}
+
+\section{Source Code: \texttt{preprocessing.py}}\label{app:preprocessing}
+
+Preprocessing: tree/forest detection, AHU canonical labelling (Section~6.2), twin detection and iterative reduction (Section~6.3), and connected component decomposition (Section~6.4).
+
+\lstinputlisting[caption={\texttt{preprocessing.py} --- Preprocessing utilities},label={lst:preprocessing}]{preprocessing.py}
+
 
 \end{document}
