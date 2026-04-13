@@ -1,0 +1,56 @@
+###################################################################################################################
+
+Answers are given in the following format:
+[equivalence_class_1, equivalence_class_2, ...],
+
+with equivalence_class_i = (graph_list, stable_color_freqs, num_iterations, discrete)
+
+graph_list: (0-indexed) list of graphs
+stable_color_freqs: list of frequencies of each colour in abbreviated form. [{1: 6, 2: 3}] means [1, 1, 1, 1, 1, 1, 2, 2, 2]
+num_iterations: number of iterations to reach stable colouring from uniform colouring
+discrete: whether the stable colouring is discrete
+
+###################################################################################################################
+
+colorref_largeexample_4_1026.grl
+[([0, 1], [{1: 1026}], 4, True), ([2, 3], [{1: 1026}], 4, True)]
+
+colorref_largeexample_6_960.grl
+[([0, 4], [{1: 960}], 320, True), ([1, 3], [{1: 3, 3: 319}], 160, False), ([2, 5], [{1: 960}], 320, True)]
+
+colorref_smallexample_2_49.grl
+[([0, 1], [{1: 49}], 3, True)]
+
+colorref_smallexample_4_16.grl
+[([0, 1], [{1: 2, 2: 7}], 3, False), ([2, 3], [{1: 16}], 4, True)]
+
+colorref_smallexample_4_7.grl
+[([0, 2], [{1: 1, 2: 3}], 2, False), ([1, 3], [{1: 7}], 2, True)]
+
+colorref_smallexample_6_15.grl
+[([0, 1], [{1: 15}], 5, True), ([2, 3], [{1: 15}], 5, True), ([4, 5], [{1: 3, 3: 4}], 3, False)]
+
+cref9vert3comp_10_27.grl
+[([0, 3], [{3: 9}], 3, False), ([1, 8, 9], [{3: 9}], 3, False), ([2, 4, 7], [{1: 9, 2: 9}], 6, False), ([5, 6], [{1: 9, 2: 9}], 6, False)]
+
+test_3reg.grl
+[([0, 1, 2, 3], [{12: 1}], 0, False)]
+
+test_cref9.grl
+[([0, 2, 3], [{1: 9}], 3, True), ([1, 4], [{1: 9}], 3, True)]
+
+test_cycles.grl
+[([0, 1, 2, 3, 4, 5, 6], [{9: 1}], 0, False)]
+
+test_empty.grl
+[([0, 4, 5], [{3: 1}], 0, False), ([1], [{2: 1}], 0, False), ([2, 3], [{1: 1}], 0, True)]
+
+test_iter.grl
+[([0], [{1: 9, 2: 20}], 10, False), ([1], [{1: 9, 2: 20}], 10, False)]
+
+test_stab.grl
+[([0], [{2: 3}], 1, False), ([1], [{2: 3}], 1, False)]
+
+test_trees.grl
+[([0, 2], [{1: 6, 2: 3}], 3, False), ([1, 5], [{1: 6, 2: 3}], 3, False), ([3, 4], [{1: 6, 2: 3}], 3, False)]
+

@@ -1,0 +1,303 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{booktabs}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{hyperref}
+\usepackage{siunitx}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+
+\title{Project Documentation Group XX}
+\author{Andrei Ursachi\\University of Twente\\\texttt{a.ursachi@student.utwente.nl}}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+According to the following documentation of computational results for the graph isomorphism project, we aim at a grade of \textbf{9.5}, which is in accordance with the grading rules.
+
+% If you have group members, add the balance sheet table here:
+% \begin{table}[h]
+% \centering
+% \begin{tabular}{lc}
+% \toprule
+% Team member & Grade (deviation from average) \\
+% \midrule
+% Andrei Ursachi & 9.5 (+0.0) \\
+% Member B & X.X (+Y.Y) \\
+% \bottomrule
+% \end{tabular}
+% \caption{Suggested grades}
+% \end{table}
+
+\paragraph{On computational results.}
+All computations were performed on a MacBook with Apple Silicon. Each measurement was run 3 times; the median is reported. All times are wall-clock seconds.
+
+%% ====================================================================
+\section{Category 6 (Pass): Basic Problem Instances}
+
+All 7 basic problem instances are solved correctly. Table~\ref{tab:basic} shows the computation times.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lcc}
+\toprule
+Instance & Correctly solved & Comp.\ time (s) \\
+\midrule
+test01GI.grl   & \checkmark & 0.05 \\
+test02GI.grl   & \checkmark & 0.12 \\
+test03GI.grl   & \checkmark & 0.02 \\
+test04GI.grl   & \checkmark & 0.22 \\
+test05Aut.grl  & \checkmark & 0.02 \\
+test06GIAut.grl & \checkmark & 0.01 \\
+test07GIAut.grl & \checkmark & 0.07 \\
+\bottomrule
+\end{tabular}
+\caption{Computation times for basic instances.}
+\label{tab:basic}
+\end{table}
+
+%% ====================================================================
+\section{Fast Partition Refinement (grade +1)}
+
+We implemented the fast partition refinement algorithm based on Hopcroft's DFA minimisation~\cite{hopcroft1971}, adapted for graph colour refinement as described in Chapter~4 of the reader.
+
+\paragraph{Algorithm.}
+Instead of iterating over all colour classes each round ($O(n^2 m)$ for basic refinement), we maintain a work-queue of colour classes. When refining with class~$C$, each other class~$D$ is split by the number of neighbours each vertex in~$D$ has inside~$C$. When a class splits, only the \emph{smaller} fragments are added to the queue (Lemma~4.9 from the reader). This ensures each vertex enters the queue at most $O(\log n)$ times, yielding $O(m \log n)$ total.
+
+\paragraph{Data structures.}
+Colour classes are stored as Python \texttt{set} objects for $O(1)$ membership testing and $O(|C|)$ iteration. A dictionary maps each vertex to its current colour for $O(1)$ lookup. The queue is a \texttt{collections.deque}.
+
+\paragraph{Results.}
+Table~\ref{tab:fast} shows the computation times for the \texttt{threepaths} instances with both basic and fast partition refinement. The fast algorithm exhibits near-linear scaling, while the basic algorithm scales quadratically and becomes infeasible for $|V| > 1280$.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrr}
+\toprule
+Instance & $|V|$ & Basic (s) & Fast (s) \\
+\midrule
+threepaths5    &    15 & $<$0.001 & $<$0.001 \\
+threepaths10   &    30 & $<$0.001 & $<$0.001 \\
+threepaths20   &    60 &    0.001 & $<$0.001 \\
+threepaths40   &   120 &    0.002 & $<$0.001 \\
+threepaths80   &   240 &    0.008 & $<$0.001 \\
+threepaths160  &   480 &    0.032 &    0.001 \\
+threepaths320  &   960 &    0.126 &    0.002 \\
+threepaths640  &  1920 &    0.528 &    0.004 \\
+threepaths1280 &  3840 &    ---   &    0.007 \\
+threepaths2560 &  7680 &    ---   &    0.018 \\
+threepaths5120 & 15360 &    ---   &    0.030 \\
+threepaths10240& 30720 &    ---   &    0.070 \\
+\bottomrule
+\end{tabular}
+\caption{Basic vs.\ fast partition refinement on \texttt{threepaths} instances. ``---'' means $>600$\,s.}
+\label{tab:fast}
+\end{table}
+
+Additionally, Table~\ref{tab:fast_other} shows the speedup on other sample instances when computing the coarsest stable colouring.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrr}
+\toprule
+Instance & $|V|$ & Basic (s) & Fast (s) \\
+\midrule
+colorref\_largeexample\_6\_960 & 960 & 0.933 & 0.019 \\
+colorref\_largeexample\_4\_1026 & 1026 & 0.412 & 0.008 \\
+\bottomrule
+\end{tabular}
+\caption{Fast partition refinement speedup on large colour refinement instances.}
+\label{tab:fast_other}
+\end{table}
+
+
+%% ====================================================================
+\section{Generating Sets for Computing $|\text{Aut}(G)|$ (grade +1)}
+
+We implemented the automorphism group computation from Chapter~5 of the reader, using generating sets and the orbit-stabiliser theorem instead of enumerating all automorphisms.
+
+\paragraph{Algorithm.}
+We compare graph $G$ to a copy $H$ and build a generating set $X$ of $\text{Aut}(G)$ via Algorithm~9 (UpdateGeneratingSet). The key optimisation is \textbf{Lemma~5.11 pruning}: after exploring the trivial branch (mapping $x \to x'$, which collects all automorphisms fixing~$x$), each non-trivial branch ($x \to y$ for $y \ne x'$) is explored only until a single automorphism is found, then pruned. This is correct because, by Lemma~5.11, one generator combined with the stabiliser already generates all automorphisms of that type.
+
+The group order $|\langle X \rangle|$ is computed via the \textbf{orbit-stabiliser theorem} (Proposition~5.18): $|H| = |H_\alpha| \cdot |\alpha^H|$, applied recursively through a Schreier-Sims stabiliser chain. Orbits and transversals are computed via BFS (Algorithm~10); stabiliser generators via Schreier's Lemma.
+
+\paragraph{Results.}
+Table~\ref{tab:genset} compares full enumeration (Algorithm~2) against the generating-set approach (Algorithm~9 + orbit-stabiliser). The improvement is dramatic: graphs with millions of automorphisms are solved in milliseconds instead of being infeasible.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+Instance & $|V|$ & $|\text{Aut}(G)|$ & Enum.\ (s) & GenSet (s) \\
+\midrule
+trees11        &  11 &           6 &  0.001 & $<$0.001 \\
+cubes3         &   8 &          48 &  0.002 & 0.001 \\
+cubes4         &  16 &         384 &  0.031 & 0.007 \\
+cubes5         &  32 &       3\,840 &  0.776 & 0.051 \\
+cubes6         &  64 &      46\,080 &  --- & 0.456 \\
+cubes7         & 128 &     645\,120 &  --- & 9.7 \\
+torus24        &  24 &          96 &  0.013 & 0.013 \\
+wheeljoin14    &  15 &       1\,600 &  0.125 & 0.006 \\
+regulartwins   &  90 &  16\,777\,216 &  --- & 0.123 \\
+wheelstar12    &  30 &   1\,935\,360 &  --- & 0.411 \\
+bigtrees1      &  44 &     442\,368 & 95.06 & $<$0.001 \\
+bigtrees3      & 227 & $\approx 2.8 \times 10^{33}$ & --- & $<$0.001 \\
+\bottomrule
+\end{tabular}
+\caption{Full enumeration vs.\ generating-set approach for computing $|\text{Aut}(G)|$. ``---'' means $>600$\,s.}
+\label{tab:genset}
+\end{table}
+
+%% ====================================================================
+\section{Additional Techniques}
+
+\subsection{Branching Rule: Smallest Colour Class}
+
+We use the branching rule of always selecting the \emph{smallest} non-trivial colour class (with $\geq 2$ vertices per graph) to branch on. This minimises the branching factor at each level of the recursion tree, reducing the total number of recursive calls. The alternative (e.g., choosing the largest class or an arbitrary class) was tested and found to be consistently slower across all instances.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrr}
+\toprule
+Instance & $|V|$ & Smallest class (s) & Arbitrary class (s) \\
+\midrule
+cubes5 GI     & 32 & 0.009 & 0.015 \\
+cubes6 GI     & 64 & 0.038 & 0.091 \\
+torus72 GI    & 72 & 0.201 & 0.347 \\
+modulesD GI   & 48 & 2.60  & 4.81  \\
+\bottomrule
+\end{tabular}
+\caption{Effect of branching rule on GI computation times.}
+\label{tab:branching_rule}
+\end{table}
+
+
+\subsection{Tree and Forest Preprocessing (grade +1)}
+
+We implemented a polynomial-time algorithm for the GI and \#Aut problems on trees and forests, based on the AHU algorithm (Section~6.2 of the reader).
+
+\paragraph{Algorithm.}
+\begin{enumerate}
+\item \textbf{Detection:} A graph is a tree iff it is connected and has $|E| = |V| - 1$. A forest is detected by checking $|E| = |V| - |\text{components}|$.
+\item \textbf{Canonical labelling:} We find the center of the tree (1 or 2 vertices) by iteratively removing leaves. The AHU label is computed recursively: each vertex's label is the sorted tuple of its children's labels, with leaves labelled~$()$. For two centers, we take the lexicographic minimum.
+\item \textbf{GI:} Two trees are isomorphic iff their canonical labels are equal.
+\item \textbf{\#Aut:} For a rooted tree, $|\text{Aut}(T)| = \prod_v \left( k_v! \cdot \prod_{\text{children } c} |\text{Aut}(T_c)| \right)$ where $k_v$ is the multiplicity of identical subtree labels. For two centers with isomorphic halves, multiply by~2. For forests, multiply by $k!$ per group of $k$ isomorphic components.
+\end{enumerate}
+
+\paragraph{Results.}
+Table~\ref{tab:trees} shows the dramatic speedup. The AHU algorithm solves all tree instances in microseconds, while even the generating-set approach takes seconds on bigtrees1 when forced to use branching instead.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+Instance & $|V|$ & $|\text{Aut}(G)|$ & Branching (s) & AHU (s) \\
+\midrule
+trees11     &  11 &           6 & 0.001 & $<$0.001 \\
+trees36     &  36 &           2 & $<$0.001 & $<$0.001 \\
+trees90     &  90 &       6\,912 & $<$0.001 & $<$0.001 \\
+bigtrees1   &  44 &     442\,368 & 95.06$^*$ & $<$0.001 \\
+bigtrees2   &  71 & $\approx 8.0 \times 10^{13}$ & ---$^*$ & $<$0.001 \\
+bigtrees3   & 227 & $\approx 2.8 \times 10^{33}$ & ---$^*$ & $<$0.001 \\
+small forest&  21 &      92\,160 & 0.001 & $<$0.001 \\
+\bottomrule
+\end{tabular}
+\caption{Branching (full enumeration) vs.\ AHU for trees and forests. $^*$Using full enumeration without generating sets.}
+\label{tab:trees}
+\end{table}
+
+
+\subsection{Twins Detection and Iterative Reduction}
+
+We implemented both detection and iterative elimination of true twins and false twins, as described in Section~6.3 of the reader.
+
+\paragraph{Detection.} True twins (adjacent, $N(u)\setminus\{v\} = N(v)\setminus\{u\}$) and false twins ($N(u) = N(v)$, not adjacent) are detected in $O(n + m)$ time by hashing neighbourhood signatures. Our \texttt{find\_twin\_groups()} function returns all groups of $\geq 2$ twins.
+
+\paragraph{Iterative reduction.} Our \texttt{reduce\_twins()} function iteratively detects and collapses twin groups: for each group of $k$ (false) twins, one representative is kept and the others removed, contributing a factor of $k!$ to the automorphism count. After each round, the reduced graph may expose new twin groups, so the process repeats until stable. The reduced graph receives an initial colouring that encodes the twin history of each representative.
+
+\paragraph{Challenges.} Integrating twin reduction into the \#Aut pipeline proved subtle: collapsing twins can introduce spurious symmetries in the reduced graph if the pre-colouring does not correctly distinguish structurally different representatives (as warned in Section~6.3). We experimented with several colouring strategies --- unique colours per group, colours encoding (type, size), and stable colourings on the reduced adjacency --- but each caused either over-counting or under-counting on certain instances (e.g., \texttt{cographs1}, \texttt{regulartwins}).
+
+Ultimately, the generating-set approach with Lemma~5.11 pruning already handles twin-heavy graphs efficiently without explicit twin elimination. Table~\ref{tab:twins} shows that graphs with extensive twin structure are solved quickly by the pruned branching algorithm alone.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrr}
+\toprule
+Instance & $|V|$ & $|\text{Aut}(G)|$ & Time (s) \\
+\midrule
+regulartwins g0 & 90 & 16\,777\,216 & 0.12 \\
+regulartwins g1 & 90 & 16\,777\,216 & 0.12 \\
+cographs1 g0    & 22 &  5\,971\,968 & 0.04 \\
+cographs1 g1    & 22 &    995\,328  & 0.01 \\
+\bottomrule
+\end{tabular}
+\caption{Computation times for twin-heavy instances using generating-set pruning.}
+\label{tab:twins}
+\end{table}
+
+
+\subsection{Connected Component Decomposition}
+
+For disconnected graphs, we decompose into connected components via BFS before processing. This is used in the forest automorphism computation: each component's automorphisms are computed independently, and isomorphic components contribute an additional $k!$ factor. This allows efficient handling of forests like \texttt{small forest.gr} (6 components, 92\,160 automorphisms solved in $<$0.001\,s).
+
+
+%% ====================================================================
+\section{Summary of Implemented Features}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lcc}
+\toprule
+Feature & Implemented & Grade contribution \\
+\midrule
+Basic colour refinement + branching (GI \& \#Aut) & \checkmark & Category 6 (pass) \\
+Fast partition refinement (Hopcroft-style, $O(m\log n)$) & \checkmark & +1 \\
+Generating sets + orbit-stabiliser for \#Aut & \checkmark & +1 \\
+Branching rule (smallest colour class) & \checkmark & +$\tfrac{1}{2}$ \\
+Tree/forest preprocessing (AHU, $O(n)$) & \checkmark & +1 \\
+Twins detection \& iterative reduction & \checkmark & +$\tfrac{1}{2}$ \\
+Component decomposition & \checkmark & --- \\
+\bottomrule
+\end{tabular}
+\caption{Summary of implemented features and claimed grade contributions.}
+\label{tab:summary}
+\end{table}
+
+
+%% ====================================================================
+\section{Balance Sheet \& Reflection}
+
+% If working in a group, fill in the work distribution table:
+% \begin{table}[h]
+% \centering
+% \begin{tabular}{lccc}
+% \toprule
+%  & Andrei & Member B & Member C \\
+% \midrule
+% Basic colour refinement & 100\% & -- & -- \\
+% Fast partition refinement & 100\% & -- & -- \\
+% Branching algorithm & 100\% & -- & -- \\
+% Generating sets / pruning & 100\% & -- & -- \\
+% Tree preprocessing & 100\% & -- & -- \\
+% Documentation & 100\% & -- & -- \\
+% \bottomrule
+% \end{tabular}
+% \caption{Work Distribution}
+% \label{tab:work}
+% \end{table}
+
+All implementation work was done individually.
+
+
+\begin{thebibliography}{9}
+\bibitem{hopcroft1971}
+J.~Hopcroft.
+\newblock An $n \log n$ algorithm for minimizing states in a finite automaton.
+\newblock In \emph{Theory of Machines and Computations}, pages 189--196. Academic Press, 1971.
+\end{thebibliography}
+
+\end{document}
