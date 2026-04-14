@@ -28,14 +28,11 @@ from fast_colorref import (
     fast_colour_refine,
     Partition,
     get_colour_signature,
-    is_balanced,
-    is_discrete_for_graph,
-    defines_bijection,
 )
-from permutation import Permutation, IDENTITY, group_order
+from permutation import Permutation, group_order
 from preprocessing import (
     is_tree, is_forest, find_components, tree_canonical_label,
-    tree_automorphisms, find_twin_groups,
+    tree_automorphisms,
 )
 from math import factorial
 
