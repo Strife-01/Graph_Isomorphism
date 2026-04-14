@@ -31,7 +31,7 @@ from fast_colorref import (
 )
 from permutation import Permutation, group_order
 from preprocessing import (
-    is_tree, is_forest, find_components, tree_canonical_label,
+    is_tree, is_forest, is_connected, find_components, tree_canonical_label,
     tree_automorphisms,
 )
 from math import factorial
@@ -267,6 +267,81 @@ def _forest_automorphisms(graph: Graph) -> int:
 # #Aut branching  (Algorithm 9 — UpdateGeneratingSet + pruning)
 # ---------------------------------------------------------------------------
 
+def _component_graph(vertices: List[Vertex], parent: Graph) -> Graph:
+    """Build a subgraph induced by *vertices* from *parent*."""
+    vset = set(vertices)
+    sub = Graph(directed=parent.directed, n=len(vertices))
+    sub_verts = list(sub.vertices)
+    old_to_new = {vertices[i]: sub_verts[i] for i in range(len(vertices))}
+
+    seen: set = set()
+    for v in vertices:
+        for e in v.incidence:
+            other = e.other_end(v)
+            if other in vset:
+                ek = (min(id(e.tail), id(e.head)),
+                      max(id(e.tail), id(e.head)))
+                if ek not in seen:
+                    seen.add(ek)
+                    sub.add_edge(Edge(old_to_new[e.tail], old_to_new[e.head]))
+    return sub
+
+
+def _disconnected_automorphisms(graph: Graph, adj: Dict) -> int:
+    """Count |Aut(G)| for a disconnected non-forest graph.
+
+    Decomposes into connected components, solves each independently,
+    and multiplies by k! for each group of k isomorphic components.
+    """
+    components = find_components(graph)
+    if len(components) == 1:
+        return _count_aut_core(graph, adj, None)
+
+    # Build a subgraph for each component and solve independently
+    comp_graphs: List[Graph] = []
+    comp_auts: List[int] = []
+    for comp in components:
+        sub = _component_graph(comp, graph)
+        sub_adj = _build_neighbour_index(list(sub))
+        if is_forest(sub):
+            aut = _forest_automorphisms(sub)
+        else:
+            aut = _count_aut_core(sub, sub_adj, None)
+        comp_graphs.append(sub)
+        comp_auts.append(aut)
+
+    # Group isomorphic components for the k! permutation factor.
+    # Use colour refinement signatures as a cheap first grouping,
+    # then exact isomorphism within signature groups.
+    assigned = [False] * len(comp_graphs)
+    total = 1
+
+    for i in range(len(comp_graphs)):
+        if assigned[i]:
+            continue
+        assigned[i] = True
+        group_count = 1
+        total *= comp_auts[i]
+        for j in range(i + 1, len(comp_graphs)):
+            if assigned[j]:
+                continue
+            if len(comp_graphs[i]) != len(comp_graphs[j]):
+                continue
+            if len(comp_graphs[i].edges) != len(comp_graphs[j].edges):
+                continue
+            pair_adj = _build_neighbour_index(
+                list(comp_graphs[i]) + list(comp_graphs[j])
+            )
+            if count_isomorphisms(comp_graphs[i], comp_graphs[j],
+                                  [], [], pair_adj, gi_only=True) > 0:
+                assigned[j] = True
+                total *= comp_auts[j]
+                group_count += 1
+        total *= factorial(group_count)
+
+    return total
+
+
 def count_automorphisms(graph: Graph,
                         adj: Dict[Vertex, List[Vertex]]) -> int:
     """Count |Aut(graph)| using generating sets and pruning.
@@ -290,6 +365,10 @@ def count_automorphisms(graph: Graph,
     # Preprocessing: forests are solved directly via AHU
     if is_forest(graph):
         return _forest_automorphisms(graph)
+
+    # Disconnected non-forest: decompose into components
+    if not is_connected(graph):
+        return _disconnected_automorphisms(graph, adj)
 
     return _count_aut_core(graph, adj, None)
 
