@@ -410,6 +410,8 @@ def _are_isomorphic(graph_g: Graph, graph_h: Graph, adj: Dict) -> bool:
     """Decide whether *graph_g* and *graph_h* are isomorphic."""
     if len(graph_g) != len(graph_h):
         return False
+    if len(graph_g.edges) != len(graph_h.edges):
+        return False
     return count_isomorphisms(graph_g, graph_h, [], [], adj, gi_only=True) > 0
 
 
