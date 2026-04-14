@@ -25,6 +25,7 @@
    - 5.5 [Orbit-Stabiliser & Group Order](#55-orbit-stabiliser--group-order)
    - 5.6 [AHU Tree Isomorphism](#56-ahu-tree-isomorphism)
    - 5.7 [Twin Detection & Reduction](#57-twin-detection--reduction)
+   - 5.8 [Optimisation Catalogue](#58-optimisation-catalogue)
 6. [Study Material Cross-Reference](#6-study-material-cross-reference)
 7. [Key Data Structures](#7-key-data-structures)
 8. [How to Run](#8-how-to-run)
@@ -321,39 +322,43 @@ When colour refinement gives a balanced colouring that isn't discrete, there are
 
 **Encoding the choice**: Give x and y a unique new colour, then re-run colour refinement. This propagates the constraint "x maps to y" through the graph structure.
 
-#### `_copy_graph` (line 44)
+#### `_copy_graph` (line 59)
 
 Creates an independent copy of a graph with fresh `Vertex` and `Edge` objects. Returns `(copy, vertex_map)` where `vertex_map` maps each original vertex to its counterpart in the copy. Used by `_count_aut_core` to build the pair (G, H=copy of G) needed for automorphism detection — comparing a graph to its own copy finds self-isomorphisms.
 
-#### Partition helpers: `is_balanced_pair`, `is_discrete_pair`, `_extract_bijection` (lines 115-193)
+#### Partition helpers: `is_balanced_pair`, `is_discrete_pair`, `_extract_bijection` (lines 136-260)
 
 These are **optimized two-graph versions** of the general partition checks in `fast_colorref.py`:
 
 | Function | Lines | Purpose |
 |----------|-------|---------|
-| `is_balanced_pair(verts_g, verts_h, partition)` | 115-128 | Checks if two graphs have identical colour distributions. Faster than the general `is_balanced` — uses a single counter dict instead of comparing signatures. |
-| `is_discrete_pair(verts_g, verts_h, partition)` | 131-145 | Checks if every vertex in G has a unique colour (since the partition is balanced, H is discrete too). Avoids set allocation overhead of the general version. |
-| `_extract_bijection(verts_g, verts_h, partition)` | 186-193 | When the partition is discrete and balanced, extracts the unique vertex mapping f: V(G) → V(H) by matching vertices that share the same colour. Used by `_count_aut_core` to convert a discrete partition into a `Permutation` object. |
+| `is_balanced_pair(verts_g, verts_h, partition)` | 136-163 | Checks if two graphs have identical colour distributions. Faster than the general `is_balanced` — uses a single counter dict instead of comparing signatures. |
+| `is_discrete_pair(verts_g, verts_h, partition)` | 166-193 | Checks if every vertex in G has a unique colour (since the partition is balanced, H is discrete too). Avoids set allocation overhead of the general version. |
+| `_extract_bijection(verts_g, verts_h, partition)` | 254-260 | When the partition is discrete and balanced, extracts the unique vertex mapping f: V(G) → V(H) by matching vertices that share the same colour. Used by `_count_aut_core` to convert a discrete partition into a `Permutation` object. |
 
 These are called from `_BranchingContext.refine_and_check` on every recursive call, so their performance matters.
 
-#### Key helper: `_BranchingContext` (lines 72-112)
+#### Key helper: `_BranchingContext` (lines 87-133)
 
 This class pre-computes and caches data shared across all recursive calls for a pair of graphs G and H:
 - `adj`: pre-computed adjacency lists
 - `verts_g`, `verts_h`: vertex lists for G and H
-- `base_colouring`: shared dict, modified in-place for each branch then restored (avoids allocation)
+- `base_colouring`: shared dict initialised with vertex degree as colour, modified in-place for each branch then restored (avoids allocation)
 - `refine_and_check(D, I)`: the core operation — set up colouring from (D,I) sequences, run fast refinement, classify result as unbalanced (0), bijection (1), or needs-more-branching (2)
 
-#### `_choose_branching_class` (lines 148-183)
+#### `_choose_branching_class` (lines 196-251)
 
 > **Reader**: Section 3.5 "Improvements" (page 36)
 
 Picks the **smallest** non-trivial colour class (size ≥ 2 in both graphs) to branch on. This minimizes the branching factor at each level.
 
-**Why smallest?** If a class has k vertices, branching on it creates k recursive calls. Choosing the smallest class minimizes k, reducing the search tree.
+**Why smallest?** If a class has k vertices, branching on it creates k recursive calls. Choosing the smallest class minimizes k, reducing the search tree. Within the chosen class, vertices are sorted by degree descending so that `cg[0]` is the most constrained vertex — its high degree propagates more information through colour refinement.
 
-#### `count_isomorphisms` (lines 200-234) — Algorithm 2
+#### `_compute_h_aut_generators` (lines 285-289) — Orbit pruning helper
+
+Computes the generating set of Aut(H) for graphs with ≤ 100 vertices (controlled by `_ORBIT_PRUNE_MAX_VERTICES`). The generators are passed to `count_isomorphisms` where they enable **stabiliser-based orbit pruning**: at each branching level, the generators are filtered to those that fix all already-individualized vertices (the stabiliser subgroup), then orbits of the current colour class are computed. Only one representative per orbit is tried, which can reduce the branching factor from k to the number of orbits. Returns `None` if the graph is too large, a forest, or has trivial automorphism group.
+
+#### `count_isomorphisms` (lines 307-373) — Algorithm 2
 
 > **Reader**: Chapter 3, Algorithm 2 "CountIsomorphism" (page 28)  
 > **Lecture 2**: Slides 10-18  
@@ -370,7 +375,7 @@ CountIso(G, H, D, I):
   7. Return count
 ```
 
-The `gi_only=True` parameter short-circuits after finding the first isomorphism (returns 1 instead of counting all).
+The `gi_only=True` parameter short-circuits after finding the first isomorphism (returns 1 instead of counting all). When `h_aut_generators` are provided, orbit pruning reduces the candidate list at each branching level by computing stabiliser orbits.
 
 #### `count_automorphisms` — Entry point for #Aut
 
@@ -391,7 +396,7 @@ Builds subgraphs for each connected component via `_component_graph`, solves eac
 
 Decides whether two graphs are isomorphic with early exits for different vertex counts and edge counts before running the expensive branching algorithm.
 
-#### `_count_aut_core` (lines 383-479) — Algorithm 9 with Lemma 5.11 pruning
+#### `_count_aut_core` (lines 562-622) — Algorithm 9 with Lemma 5.11 pruning
 
 > **Reader**: Chapter 5, Algorithm 9 "UpdateGeneratingSet" (page 63)  
 > **Lecture 4**: Slides 13-14 "Basic Algorithmic Idea"  
@@ -431,19 +436,20 @@ After exploring the trivial branch (x → x'), we have all generators for Stab_x
 
 4. After `_update` completes, compute |⟨X⟩| via `group_order()` from `permutation.py`.
 
-#### `_tree_equivalence_classes` (line 486) — Tree GI fast-path
+#### `_tree_equivalence_classes` (line 688) — Tree GI fast-path
 
 When all input graphs are trees, this function bypasses branching entirely. It computes the AHU canonical label for each tree and groups graphs with identical labels — two trees are isomorphic if and only if their canonical labels match. Runs in O(n) per tree.
 
-#### `find_equivalence_classes` (lines 508-551) — GI with fast-path
+#### `find_equivalence_classes` (lines 728-777) — GI with fast-path
 
 > **Not directly from any single reader algorithm** — this is our own optimization.
 
 For the GI problem with multiple graphs:
 1. **Fast-path**: Run colour refinement on ALL graphs at once. Group by colour signature. Graphs with different signatures are definitely non-isomorphic — no branching needed.
-2. **Branching only within groups**: For groups of graphs with the same colour signature, pairwise test isomorphism via `count_isomorphisms(..., gi_only=True)`.
+2. **Orbit pruning**: For each candidate graph H (≤ 100 vertices), compute Aut(H) generators and cache them. These generators are passed to pairwise tests to enable stabiliser-based orbit pruning.
+3. **Branching only within groups**: For groups of graphs with the same colour signature, pairwise test isomorphism via `count_isomorphisms(..., gi_only=True, h_aut_generators=...)`.
 
-This avoids branching on most graph pairs.
+This avoids branching on most graph pairs, and orbit pruning drastically reduces the branching factor for symmetric graphs (e.g., modulesC: >19 min → 0.7s).
 
 #### `solve` — Main entry point
 
@@ -868,6 +874,150 @@ If k vertices are pairwise (false) twins, they can be arbitrarily permuted among
 #### Implementation note
 
 The `reduce_twins` function is fully integrated into the `count_automorphisms` pipeline in `branching.py`. For connected non-forest graphs, twins are iteratively collapsed before branching. The pre-colouring encodes the twin type (true/false), group size, and elimination round, ensuring colour refinement can distinguish structurally different representatives in the reduced graph. The accumulated k! factor from all collapsed twin groups is multiplied with the automorphism count of the reduced graph.
+
+---
+
+### 5.8 Optimisation Catalogue
+
+This section lists every optimisation in the solver: what it does, where it lives in the code, why it was chosen, and — for techniques that were considered but not implemented — why they were skipped.
+
+### Implemented optimisations
+
+#### 1. Lemma 5.11 pruning for #Aut (high impact)
+
+> **File**: `branching.py:_count_aut_core`, lines 607–660  
+> **Affects**: #Aut computation
+
+When building a generating set for Aut(G), the branching tree is split into a **trivial branch** (x → x', explored fully with `_update` to collect all stabiliser generators) and **non-trivial branches** (x → y, where only `_find_one` is called to find a single coset representative). Combined with the stabiliser generators, one representative per coset suffices to generate the full group.
+
+**Why**: Without this, counting automorphisms requires enumerating every automorphism — infeasible for graphs like bigtrees3 with 2.8×10³³ automorphisms. With Lemma 5.11, only O(n) generators are needed, and the solver finishes in milliseconds.
+
+#### 2. Stabiliser-based orbit pruning for GI (high impact)
+
+> **File**: `branching.py:_compute_h_aut_generators` (line 285), `count_isomorphisms._count` (lines 339–373), `find_equivalence_classes` (lines 740–760)  
+> **Affects**: GI pairwise isomorphism tests
+
+Before testing whether G ≅ H, the solver computes Aut(H) generators for small graphs (≤ 100 vertices). During branching, at each level the generators are filtered to the **stabiliser subgroup** — only those fixing already-individualized vertices. Orbits of the current colour class under this stabiliser are computed, and only **one representative per orbit** is tried as a candidate. This is correct because if σ ∈ Stab fixes the current individualization and maps y₁ → y₂, then any isomorphism through y₁ corresponds to one through y₂.
+
+**Why**: For symmetric graphs, the branching factor drops dramatically. For modulesC (30-vertex 14-regular graphs), colour refinement produces a single 30-vertex class — branching factor 30 at every level. With orbit pruning, most candidates collapse to a single orbit representative. Result: >19 minutes → 0.7 seconds.
+
+**Why only ≤ 100 vertices**: Computing Aut(H) itself uses the branching algorithm, and for large graphs the overhead can exceed the savings. The 100-vertex threshold balances cost vs. benefit.
+
+#### 3. Degree-based initial colouring (small impact)
+
+> **File**: `branching.py:_BranchingContext.__init__`, line 94  
+> **Affects**: All branching (GI and #Aut)
+
+The initial colouring for colour refinement uses `v.degree` instead of a uniform value. This gives refinement a head start: vertices of different degree are already separated before the first iteration.
+
+**Why**: Colour refinement would discover degree differences in its first iteration anyway, but starting from degree saves that iteration. The savings are small (one fewer refinement round) but come for free.
+
+#### 4. Smallest colour class branching rule (moderate impact)
+
+> **File**: `branching.py:_choose_branching_class`, lines 196–251  
+> **Affects**: All branching (GI and #Aut)
+
+When choosing which colour class to branch on, the solver picks the **smallest** non-trivial class (≥ 2 vertices in both graphs). This minimises the branching factor at each recursion level.
+
+**Why**: A colour class of size k generates k recursive calls. Choosing the smallest class minimises k, shrinking the search tree exponentially.
+
+#### 5. Highest-degree vertex selection (small impact)
+
+> **File**: `branching.py:_choose_branching_class`, lines 245–248  
+> **Affects**: All branching (GI and #Aut)
+
+Within the chosen branching class, vertices are sorted by degree descending so that `cg[0]` (the vertex individualized in G) has the highest degree. A high-degree vertex has more neighbours, so individualizing it propagates more constraints through colour refinement — more colour splits, faster convergence.
+
+**Why**: For non-regular graphs, this can noticeably reduce the search tree. For regular graphs (where all vertices in a class have the same degree), it has no effect.
+
+#### 6. `gi_only` short-circuit (moderate impact)
+
+> **File**: `branching.py:count_isomorphisms._count`, lines 367–369  
+> **Affects**: GI decision problems (via `_are_isomorphic`)
+
+When only testing *whether* an isomorphism exists (not counting all of them), branching stops as soon as the first isomorphism is found.
+
+**Why**: The GI decision problem only needs a yes/no answer. Finding one isomorphism suffices — no need to explore the remaining branches.
+
+#### 7. Colour refinement pre-filter for GI (moderate impact)
+
+> **File**: `branching.py:find_equivalence_classes`, lines 728–740  
+> **Affects**: GI equivalence class computation
+
+Before pairwise branching, colour refinement is run on ALL graphs simultaneously. Graphs are grouped by their colour signature; graphs with different signatures are proven non-isomorphic without any branching.
+
+**Why**: Colour refinement is O(m log n) — much cheaper than branching. Most graph pairs are separated at this stage, and branching is only invoked for pairs that refinement cannot distinguish.
+
+#### 8. Early exit on vertex/edge count (small impact)
+
+> **File**: `branching.py:_are_isomorphic`, lines 712–716  
+> **Affects**: GI pairwise tests
+
+Before running branching, `_are_isomorphic` checks if the two graphs have the same number of vertices and edges. Different counts mean instant rejection.
+
+**Why**: A single integer comparison is orders of magnitude cheaper than colour refinement or branching. This catches the easy non-isomorphic cases immediately.
+
+#### 9. Tree/forest preprocessing via AHU (high impact)
+
+> **File**: `preprocessing.py` (AHU functions), `branching.py:count_automorphisms` (line 464), `branching.py:_forest_automorphisms`  
+> **Affects**: GI and #Aut for trees/forests
+
+Trees and forests are detected and solved in O(n) using the AHU algorithm, bypassing branching entirely. For GI, canonical labels are compared. For #Aut, the formula |Aut(T)| = ∏ k! × ∏ |Aut(subtree)| is applied recursively. Isomorphic components in forests contribute an additional k! factor.
+
+**Why**: Trees have polynomial-time GI and #Aut — no need for exponential-time branching.
+
+#### 10. Twin detection and reduction (moderate impact)
+
+> **File**: `preprocessing.py:reduce_twins`, `branching.py:count_automorphisms` (lines 471–475)  
+> **Affects**: #Aut for graphs with twins
+
+Groups of k true or false twins are collapsed to a single representative, multiplying the automorphism count by k!. This is applied iteratively (new twins may appear after collapsing) before branching on the reduced graph.
+
+**Why**: Twins are a common source of large automorphism groups. Collapsing them shrinks the graph before the expensive branching step. The reduced graph gets a pre-colouring that encodes the twin structure, ensuring colour refinement can still distinguish structurally different representatives.
+
+#### 11. Component decomposition (moderate impact)
+
+> **File**: `branching.py:_disconnected_automorphisms`, `preprocessing.py:find_components`  
+> **Affects**: #Aut for disconnected graphs
+
+Disconnected graphs are decomposed into connected components. Each component is solved independently, and the results are multiplied. Groups of k isomorphic components contribute an additional k! factor.
+
+**Why**: Solving each component independently is much faster than solving the entire disconnected graph, because the search space is the product of per-component search spaces rather than the combined exponential.
+
+#### 12. Fast colour refinement — O(m log n) Hopcroft-style (high impact)
+
+> **File**: `fast_colorref.py:fast_colour_refine`  
+> **Affects**: Every refinement call (the inner loop of all branching)
+
+The Hopcroft-style "add smaller half to queue" trick (Lemma 4.9) ensures O(m log n) refinement instead of the naive O(n²m). Local variable aliases, inline dict operations, and a mutable-list trick for the next-colour counter keep the constant factor low.
+
+**Why**: Colour refinement is called on every single recursive branching call. Making it fast has a multiplicative effect on the entire solver.
+
+### Considered but not implemented
+
+#### A. Incremental refinement (potentially high impact)
+
+**Idea**: Instead of re-running colour refinement from scratch at each branching level, resume from the parent's stable partition and only refine the newly individualized vertex pair. This would skip all the work the parent already did.
+
+**Why skipped**: Correct implementation is complex. The `fast_colour_refine` function takes an initial colouring and produces a partition from scratch — it has no "resume" mode. Adding one would require tracking which colour classes are already stable and only re-processing affected classes. The bookkeeping is error-prone, and any bug would silently produce wrong isomorphism results. The current approach (re-refine from degree-based colouring) is simple and correct.
+
+#### B. Refinement result caching / memoisation (low expected impact)
+
+**Idea**: Cache the partition results for previously seen (D, I) individualization sequences, so that if the same sequence is encountered again in a different branch, the refinement can be skipped.
+
+**Why skipped**: In practice, (D, I) sequences rarely repeat across branches — each branch explores a different part of the search tree. The memory overhead of caching partitions (each containing vertex-to-colour maps for all vertices) would be substantial, and the hit rate too low to justify it.
+
+#### C. Complement graph trick (niche, low impact for our instances)
+
+**Idea**: For dense graphs (edge density > 0.5), work on the complement graph instead. Two graphs are isomorphic iff their complements are, and colour refinement is O(m log n) — sparser complement = faster refinement.
+
+**Why skipped**: Analysed for the hardest instances. modulesC is 14-regular on 30 vertices (density 0.48); its complement is 15-regular (density 0.52) — equally hard for refinement, no benefit. wheelstar16 has density 0.045 — complement would be much denser and slower. The optimisation only helps when the complement is significantly sparser, which didn't apply to any of our hard instances.
+
+#### D. Higher-dimensional Weisfeiler-Leman (k-WL) (high impact, high cost)
+
+**Idea**: Replace 1-WL colour refinement with k-WL (k ≥ 2), which colours k-tuples of vertices instead of individual vertices. 2-WL is strictly more powerful than 1-WL and can distinguish many graphs that 1-WL cannot (e.g., regular graphs of the same degree).
+
+**Why skipped**: k-WL has time complexity O(n^(k+1)) per iteration and space O(n^k). For k=2, this means O(n³) time and O(n²) space — feasible for small graphs but impractical for larger ones. It would require a fundamentally different data structure (colouring pairs of vertices instead of individual vertices) and a complete rewrite of the refinement pipeline. The stabiliser-based orbit pruning provides much of the same benefit for symmetric graphs at far lower implementation cost.
 
 ---
 

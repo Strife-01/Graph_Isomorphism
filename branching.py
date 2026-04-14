@@ -16,6 +16,21 @@ Two branching strategies are provided:
     the orbit-stabiliser theorem.  Prunes redundant branches with
     Lemma 5.11, making it feasible even for graphs with 10^33+
     automorphisms (e.g. bigtrees3).
+
+Key optimisations beyond the textbook algorithms:
+
+  * **Degree-based initial colouring**: vertex degree is used as the
+    initial colour (instead of uniform), giving colour refinement a
+    head start.
+  * **Highest-degree vertex selection**: within each branching class,
+    the most constrained vertex (highest degree) is individualized
+    first to maximise refinement propagation.
+  * **Orbit pruning for GI**: before pairwise isomorphism tests,
+    Aut(H) is computed for small graphs (<= 100 vertices).  At each
+    branching level, the stabiliser of already-individualized vertices
+    is used to compute orbits within the current colour class; only one
+    representative per orbit is tried, drastically cutting the
+    branching factor for symmetric graphs.
 """
 
 from collections import defaultdict
@@ -29,7 +44,7 @@ from fast_colorref import (
     Partition,
     get_colour_signature,
 )
-from permutation import Permutation, group_order
+from permutation import Permutation, group_order, orbit_and_transversal
 from preprocessing import (
     is_tree, is_forest, is_connected, find_components, tree_canonical_label,
     tree_automorphisms, reduce_twins,
@@ -82,7 +97,9 @@ class _BranchingContext:
         self.verts_h = list(graph_h)
         self.n_g = len(self.verts_g)
         self.all_vertices = self.verts_g + self.verts_h
-        self.base_colouring = {v: 0 for v in self.all_vertices}
+        # Use degree as initial colour — gives refinement a head start
+        # by separating vertices of different degree before refinement.
+        self.base_colouring = {v: v.degree for v in self.all_vertices}
 
     def refine_and_check(self, D: list, I: list):
         """Run colour refinement with α(D,I) and classify the result.
@@ -90,20 +107,24 @@ class _BranchingContext:
         Returns (partition, status) where status is 0 (unbalanced),
         1 (bijection), or 2 (branch needed).
         """
-        # Build colouring: modify base, refine, then restore
+        # Build colouring: modify base, refine, then restore.
+        # Individualized pairs get unique negative colours to avoid
+        # collision with degree-based colours (which are >= 0).
         base = self.base_colouring
         depth = len(D)
+        saved = []
         for i in range(depth):
-            c = i + 1
+            c = -(i + 1)
+            saved.append((base[D[i]], base[I[i]]))
             base[D[i]] = c
             base[I[i]] = c
 
         partition = fast_colour_refine(self.all_vertices, self.adj, base)
 
-        # Restore base colouring to all-zeros
+        # Restore base colouring to degree values
         for i in range(depth):
-            base[D[i]] = 0
-            base[I[i]] = 0
+            base[D[i]] = saved[i][0]
+            base[I[i]] = saved[i][1]
 
         if not is_balanced_pair(self.verts_g, self.verts_h, partition):
             return None, 0
@@ -222,7 +243,12 @@ def _choose_branching_class(verts_g: list, verts_h: list,
             best_size = lg
             best_colour = colour
 
-    return colours_g[best_colour], colours_h[best_colour]
+    # Sort by degree descending so that cg[0] is the most constrained
+    # vertex — its high degree propagates more information through
+    # colour refinement, leading to faster pruning.
+    cg = sorted(colours_g[best_colour], key=lambda v: v.degree, reverse=True)
+    ch = sorted(colours_h[best_colour], key=lambda v: v.degree, reverse=True)
+    return cg, ch
 
 
 def _extract_bijection(verts_g: list, verts_h: list,
@@ -253,12 +279,38 @@ def _extract_bijection(verts_g: list, verts_h: list,
 # GI branching  (Algorithm 2 — CountIsomorphism)
 # ---------------------------------------------------------------------------
 
+_ORBIT_PRUNE_MAX_VERTICES = 100  # Only compute Aut(H) for small graphs
+
+
+def _compute_h_aut_generators(graph_h: Graph, adj: Dict) -> Optional[List[Permutation]]:
+    """Compute Aut(H) generators for orbit pruning in GI branching.
+
+    Returns a list of generating permutations for Aut(H), or None if
+    Aut(H) is trivial or the graph is too large for the overhead to
+    be worthwhile.
+    """
+    n = len(graph_h)
+    if n > _ORBIT_PRUNE_MAX_VERTICES:
+        return None  # Aut computation too expensive for large graphs
+    if is_forest(graph_h):
+        return None  # trees are handled separately
+    local_adj = _build_neighbour_index(list(graph_h))
+    result = _count_aut_core(graph_h, local_adj, None, return_generators=True)
+    if isinstance(result, int):
+        return None  # trivial group
+    order, generators = result
+    if order <= 1 or not generators:
+        return None
+    return generators
+
+
 def count_isomorphisms(graph_g: Graph,
                        graph_h: Graph,
                        D: List[Vertex],
                        I: List[Vertex],
                        adj: Dict,
-                       gi_only: bool = False) -> int:
+                       gi_only: bool = False,
+                       h_aut_generators: Optional[List[Permutation]] = None) -> int:
     """Count isomorphisms from *graph_g* to *graph_h*.
 
     Implements Algorithm 2 (CountIsomorphism) from Chapter 3.
@@ -268,20 +320,24 @@ def count_isomorphisms(graph_g: Graph,
     (exactly one isomorphism).
 
     Args:
-        graph_g:   Source graph.
-        graph_h:   Target graph.
-        D:         Initial individualization sequence in G (usually []).
-        I:         Initial individualization sequence in H (usually []).
-        adj:       Pre-computed adjacency dict for all vertices in G and H.
-        gi_only:   If True, short-circuit after finding the first
-                   isomorphism (returns 1 instead of counting all).
+        graph_g:           Source graph.
+        graph_h:           Target graph.
+        D:                 Initial individualization sequence in G (usually []).
+        I:                 Initial individualization sequence in H (usually []).
+        adj:               Pre-computed adjacency dict for all vertices in G and H.
+        gi_only:           If True, short-circuit after finding the first
+                           isomorphism (returns 1 instead of counting all).
+        h_aut_generators:  Optional Aut(H) generators.  If provided, orbit
+                           pruning reduces the branching factor by only trying
+                           one candidate per orbit at each level.
 
     Returns:
         Number of isomorphisms (or 1 if gi_only and at least one exists).
     """
     ctx = _BranchingContext(graph_g, graph_h, adj)
 
-    def _count(D: list, I: list) -> int:
+    def _count(D: list, I: list,
+               aut_gens: Optional[List[Permutation]]) -> int:
         """Recursive core: refine, check, and branch if needed."""
         partition, status = ctx.refine_and_check(D, I)
         if status == 0:
@@ -292,11 +348,36 @@ def count_isomorphisms(graph_g: Graph,
         cg, ch = _choose_branching_class(ctx.verts_g, ctx.verts_h, partition)
         x = cg[0]
 
+        # Orbit pruning: compute orbits of Aut(H) stabilizer within
+        # the current colour class to reduce branching factor.
+        # At each level, only generators that fix all previously
+        # individualized H-vertices are valid (stabilizer subgroup).
+        candidates = ch
+        if aut_gens:
+            # Compute orbits within ch using current generators
+            ch_set = set(ch)
+            seen: set = set()
+            pruned = []
+            for y in ch:
+                if y in seen:
+                    continue
+                pruned.append(y)
+                orb, _ = orbit_and_transversal(aut_gens, y)
+                seen |= (orb & ch_set)
+            candidates = pruned
+
         num = 0
         D.append(x)
-        for y in ch:
+        for y in candidates:
             I.append(y)
-            num += _count(D, I)
+            # Compute stabilizer generators for next level:
+            # keep only generators that fix y.
+            next_gens = None
+            if aut_gens:
+                next_gens = [g for g in aut_gens if g(y) == y]
+                if not next_gens:
+                    next_gens = None
+            num += _count(D, I, next_gens)
             I.pop()
             if gi_only and num > 0:
                 D.pop()
@@ -304,7 +385,7 @@ def count_isomorphisms(graph_g: Graph,
         D.pop()
         return num
 
-    return _count(list(D), list(I))
+    return _count(list(D), list(I), h_aut_generators)
 
 
 # ---------------------------------------------------------------------------
@@ -479,13 +560,15 @@ def count_automorphisms(graph: Graph,
 
 
 def _count_aut_core(graph: Graph, adj: Dict,
-                    pre_colouring: Optional[Dict]) -> int:
+                    pre_colouring: Optional[Dict],
+                    return_generators: bool = False):
     """Core #Aut via generating sets + Lemma 5.11 pruning.
 
     Args:
-        graph:          The graph (possibly twin-reduced).
-        adj:            Pre-computed adjacency lists.
-        pre_colouring:  Optional initial colouring from twin reduction.
+        graph:              The graph (possibly twin-reduced).
+        adj:                Pre-computed adjacency lists.
+        pre_colouring:      Optional initial colouring from twin reduction.
+        return_generators:  If True, return (order, generators) instead of order.
     """
     graph_copy, vertex_map = _copy_graph(graph)
 
@@ -593,6 +676,8 @@ def _count_aut_core(graph: Graph, adj: Dict,
     for v in copy_verts:
         adj.pop(v, None)
 
+    if return_generators:
+        return group_order(generating_set, orig_verts), generating_set
     return group_order(generating_set, orig_verts)
 
 
@@ -613,16 +698,20 @@ def _tree_equivalence_classes(graphs: List[Graph]) -> List[List[int]]:
                   key=lambda c: c[0])
 
 
-def _are_isomorphic(graph_g: Graph, graph_h: Graph, adj: Dict) -> bool:
+def _are_isomorphic(graph_g: Graph, graph_h: Graph, adj: Dict,
+                    h_aut_gens: Optional[List[Permutation]] = None) -> bool:
     """Decide whether *graph_g* and *graph_h* are isomorphic.
 
     Applies cheap early-exit checks (vertex count, edge count) before
     running the expensive branching algorithm with ``gi_only=True``.
+    When *h_aut_gens* is provided, orbit pruning reduces the branching
+    factor by only trying one candidate per Aut(H) orbit at each level.
 
     Args:
-        graph_g:  First graph.
-        graph_h:  Second graph.
-        adj:      Pre-computed adjacency dict for vertices of both graphs.
+        graph_g:     First graph.
+        graph_h:     Second graph.
+        adj:         Pre-computed adjacency dict for vertices of both graphs.
+        h_aut_gens:  Optional Aut(H) generators for orbit pruning.
 
     Returns:
         True if the two graphs are isomorphic.
@@ -631,7 +720,9 @@ def _are_isomorphic(graph_g: Graph, graph_h: Graph, adj: Dict) -> bool:
         return False
     if len(graph_g.edges) != len(graph_h.edges):
         return False
-    return count_isomorphisms(graph_g, graph_h, [], [], adj, gi_only=True) > 0
+    return count_isomorphisms(graph_g, graph_h, [], [], adj,
+                              gi_only=True,
+                              h_aut_generators=h_aut_gens) > 0
 
 
 def find_equivalence_classes(graphs: List[Graph],
@@ -663,6 +754,9 @@ def find_equivalence_classes(graphs: List[Graph],
             continue
 
         remaining = set(indices)
+        # Pre-compute Aut generators for orbit pruning.
+        # Cache per graph to reuse across multiple pair tests.
+        aut_cache: Dict[int, Optional[List[Permutation]]] = {}
         for i in indices:
             if i not in remaining:
                 continue
@@ -670,7 +764,11 @@ def find_equivalence_classes(graphs: List[Graph],
             remaining.remove(i)
             to_remove = []
             for j in remaining:
-                if _are_isomorphic(graphs[i], graphs[j], adj):
+                # Compute Aut(H) generators for graph j on first use
+                if j not in aut_cache:
+                    aut_cache[j] = _compute_h_aut_generators(graphs[j], adj)
+                if _are_isomorphic(graphs[i], graphs[j], adj,
+                                   h_aut_gens=aut_cache[j]):
                     eq_class.append(j)
                     to_remove.append(j)
             for j in to_remove:

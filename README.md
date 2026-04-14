@@ -128,7 +128,7 @@ The filename tells the solver what to compute:
 
 | File | Description |
 |------|------------|
-| `branching.py` | **Main entry point.** Solver for GI and #Aut. Includes component decomposition for disconnected graphs and twin reduction integration |
+| `branching.py` | **Main entry point.** Solver for GI and #Aut. Includes component decomposition, twin reduction, degree-based colouring, and stabiliser-based orbit pruning for GI |
 | `fast_colorref.py` | Fast colour refinement (O(m log n), Hopcroft-style) |
 | `colorref.py` | Basic colour refinement (O(n^2 m)) |
 | `permutation.py` | Permutation group operations (orbits, stabiliser chains) |
