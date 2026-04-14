@@ -386,6 +386,11 @@ def _count_aut_core(graph: Graph, adj: Dict,
         return False
 
     _update()
+
+    # Clean up copy-graph entries from the shared adj dict
+    for v in copy_verts:
+        adj.pop(v, None)
+
     return group_order(generating_set, orig_verts)
 
 
