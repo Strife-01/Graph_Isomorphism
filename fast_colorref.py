@@ -33,6 +33,11 @@ class Partition:
         self._next_colour: int = 0
 
     def add_class(self, members: set) -> int:
+        """Create a new colour class from *members* and return its colour id.
+
+        Each vertex in *members* is assigned the new colour in
+        ``vertex_colour``.
+        """
         c = self._next_colour
         self._next_colour += 1
         self.classes[c] = members
@@ -51,7 +56,17 @@ class Partition:
 # ---------------------------------------------------------------------------
 
 def _build_neighbour_index(vertices) -> Dict:
-    """Pre-compute adjacency lists for fast iteration."""
+    """Pre-compute adjacency lists for fast iteration.
+
+    Returns a dict mapping each vertex to its list of neighbours.
+    Caching this avoids repeated property lookups during refinement.
+
+    Args:
+        vertices:  Iterable of Vertex objects (may span multiple graphs).
+
+    Returns:
+        Dict mapping vertex → list of neighbour vertices.
+    """
     return {v: v.neighbours for v in vertices}
 
 
@@ -215,7 +230,20 @@ def fast_colour_refine(vertices: list,
 def colour_refine_graphs(graphs: List[Graph],
                          initial_colouring: Optional[Dict] = None
                          ) -> Partition:
-    """Run fast colour refinement on a list of graphs (disjoint union)."""
+    """Run fast colour refinement on a list of graphs (disjoint union).
+
+    Pools all vertices from every graph into a single vertex set and
+    refines them together.  Isomorphic graphs will end up with
+    identical colour distributions.
+
+    Args:
+        graphs:             List of Graph objects to refine together.
+        initial_colouring:  Optional vertex → colour dict.  If None,
+                            all vertices start with colour 0.
+
+    Returns:
+        The stable Partition after refinement.
+    """
     all_vertices = [v for G in graphs for v in G]
     if initial_colouring is None:
         initial_colouring = {v: 0 for v in all_vertices}
@@ -224,7 +252,19 @@ def colour_refine_graphs(graphs: List[Graph],
 
 
 def get_colour_signature(graph: Graph, partition: Partition) -> Tuple:
-    """Canonical signature: sorted (colour, count) pairs."""
+    """Compute a canonical colour signature for *graph*.
+
+    The signature is a sorted tuple of ``(colour, count)`` pairs
+    describing how many vertices of each colour the graph has.
+    Two graphs with different signatures are guaranteed non-isomorphic.
+
+    Args:
+        graph:      The graph to characterise.
+        partition:  A stable Partition (from colour refinement).
+
+    Returns:
+        A hashable tuple suitable for dict keys / equality checks.
+    """
     counts: Dict[int, int] = {}
     vc = partition.vertex_colour
     for v in graph:
@@ -234,7 +274,19 @@ def get_colour_signature(graph: Graph, partition: Partition) -> Tuple:
 
 
 def is_balanced(graphs: List[Graph], partition: Partition) -> bool:
-    """Check balanced colouring across graphs."""
+    """Check whether all graphs share the same colour distribution.
+
+    A balanced colouring is a necessary (but not sufficient) condition
+    for isomorphism.  If unbalanced, the graphs are definitely not
+    isomorphic.
+
+    Args:
+        graphs:     List of Graph objects to compare.
+        partition:  A stable Partition.
+
+    Returns:
+        True if every graph has the same colour signature.
+    """
     if len(graphs) < 2:
         return True
     ref = get_colour_signature(graphs[0], partition)
@@ -245,7 +297,19 @@ def is_balanced(graphs: List[Graph], partition: Partition) -> bool:
 
 
 def is_discrete_for_graph(graph: Graph, partition: Partition) -> bool:
-    """Check if every vertex in the graph has a unique colour."""
+    """Check if every vertex in *graph* has a unique colour.
+
+    A discrete colouring means each colour class has exactly one
+    vertex from this graph, so the partition fully distinguishes
+    every vertex.
+
+    Args:
+        graph:      The graph to check.
+        partition:  A stable Partition.
+
+    Returns:
+        True if every vertex in *graph* has a distinct colour.
+    """
     n = len(graph)
     seen = set()
     vc = partition.vertex_colour
@@ -256,13 +320,38 @@ def is_discrete_for_graph(graph: Graph, partition: Partition) -> bool:
 
 def defines_bijection(graph_a: Graph, graph_b: Graph,
                       partition: Partition) -> bool:
-    """Check if the partition defines a bijection between two graphs."""
+    """Check if the partition defines a unique bijection between two graphs.
+
+    This is the case when the colouring is both discrete and balanced:
+    each vertex in graph_a can be uniquely matched to the vertex in
+    graph_b with the same colour.
+
+    Args:
+        graph_a:    First graph.
+        graph_b:    Second graph.
+        partition:  A stable Partition.
+
+    Returns:
+        True if the partition is discrete for both graphs.
+    """
     return (is_discrete_for_graph(graph_a, partition) and
             is_discrete_for_graph(graph_b, partition))
 
 
 def basic_colorref_fast(filename: str) -> List[Tuple[List[int], List[int], int, bool]]:
-    """Drop-in replacement for basic_colorref using fast colour refinement."""
+    """Drop-in replacement for ``basic_colorref`` using fast colour refinement.
+
+    Reads graphs from a ``.grl`` file and partitions them into
+    equivalence classes based on colour signatures, using the O(m log n)
+    algorithm instead of the O(n^2 m) basic version.
+
+    Args:
+        filename:  Path to a ``.grl`` file.
+
+    Returns:
+        Same format as ``basic_colorref``: a sorted list of tuples
+        ``(graph_indices, colour_class_sizes, iterations, is_discrete)``.
+    """
     from graph_io import load_graph
     with open(filename, 'r') as file:
         graphs = load_graph(file, graph_class=Graph, read_list=True)

@@ -43,15 +43,15 @@ done
 Run each of the 10 basic instances. They should all produce correct output.
 
 ```bash
-for f in test01GI.grl test02GI.grl test03GI.grl test04GI.grl \
-         test05Aut.grl test06GIAut.grl test07GIAut.grl; do
-    echo "=== $f ==="
+for f in tests_v2/test01GI.grl tests_v2/test02GI.grl tests_v2/test03GI.grl tests_v2/test04GI.grl \
+         tests_v2/test05Aut.grl tests_v2/test06GIAut.grl tests_v2/test07GIAut.grl; do
+    echo "=== $(basename $f) ==="
     python3 branching.py "$f"
     echo
 done
 ```
 
-Expected output for each is in `test_solutions.txt`.
+Expected output for each is in `tests_v2/test_solutions.txt`.
 
 ### 2. Fast Colour Refinement (+1 point)
 
@@ -80,29 +80,48 @@ Scaling should be roughly linear (doubling size ~ doubling time).
 Show large automorphism counts computed quickly:
 
 ```bash
-python3 branching.py bigtrees3.grl
+python3 branching.py tests/bigtrees3.grl
+# Default: GI only (filename has no "GI"/"Aut" suffix)
+# Expected: [0, 2]  [1, 3]
+# Should complete in milliseconds.
+```
+
+To also show automorphism counts, the filename must contain `GIAut`.
+You can create a symlink or copy with the right name:
+
+```bash
+ln -s bigtrees3.grl tests/bigtrees3GIAut.grl
+python3 branching.py tests/bigtrees3GIAut.grl
 # Expected: [0, 2]: 2772351862699137701073289910157312
 #           [1, 3]: 462058643783189616845548318359552
-# Should complete in seconds, not years.
 
-python3 branching.py cubes6.grl
+ln -s cubes6.grl tests/cubes6GIAut.grl
+python3 branching.py tests/cubes6GIAut.grl
 # Expected: [0, 1]: 96   [2, 3]: 46080
 
-python3 branching.py wheelstar12.grl
+ln -s wheelstar12.grl tests/wheelstar12GIAut.grl
+python3 branching.py tests/wheelstar12GIAut.grl
 # Expected: [0, 3]: 1935360   [1, 2]: 6718464
 ```
+
+> **Note**: The filename determines the problem type:
+> - `*GI.grl` — equivalence classes only
+> - `*Aut.grl` — automorphism counts only
+> - `*GIAut.grl` — both
+> - `.gr` files — single graph, automorphism count
+> - Other `.grl` files — default to equivalence classes only
 
 ### 4. Tree/Forest Preprocessing (+1 point)
 
 Show instant results on tree instances:
 
 ```bash
-python3 branching.py trees11.grl
-python3 branching.py trees90.grl
-python3 branching.py bigtrees1.grl
-python3 branching.py bigtrees2.grl
-python3 branching.py bigtrees3.grl
-python3 branching.py "small forest.gr"
+python3 branching.py tests/trees11.grl
+python3 branching.py tests/trees90.grl
+python3 branching.py tests/bigtrees1.grl
+python3 branching.py tests/bigtrees2.grl
+python3 branching.py tests/bigtrees3.grl
+python3 branching.py "tests/small forest.gr"
 ```
 
 All should complete in under 0.01s.

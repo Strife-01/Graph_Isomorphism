@@ -279,7 +279,6 @@ def reduce_twins(graph: Graph) -> Tuple[Graph, int, Dict]:
         adj_sets[hi].add(ti)
 
     alive = set(range(n))       # vertices still in the graph
-    alive = set(range(n))
     colour = [0] * n    # each vertex's colour (encodes twin history)
     next_colour = 1
     aut_factor = 1

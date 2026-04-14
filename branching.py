@@ -32,7 +32,7 @@ from fast_colorref import (
 from permutation import Permutation, group_order
 from preprocessing import (
     is_tree, is_forest, is_connected, find_components, tree_canonical_label,
-    tree_automorphisms,
+    tree_automorphisms, reduce_twins,
 )
 from math import factorial
 
@@ -113,7 +113,21 @@ class _BranchingContext:
 
 
 def is_balanced_pair(verts_g: list, verts_h: list, partition: Partition) -> bool:
-    """Fast balanced check for exactly two graphs."""
+    """Check whether graphs G and H have identical colour distributions.
+
+    Optimized for exactly two graphs: counts colours in G, then
+    decrements for each colour in H.  Any negative count means
+    unbalanced.  Faster than the general ``is_balanced`` in
+    ``fast_colorref.py`` because it avoids building full signatures.
+
+    Args:
+        verts_g:    Vertex list of graph G.
+        verts_h:    Vertex list of graph H.
+        partition:  A stable Partition.
+
+    Returns:
+        True if the colour distribution is identical for both graphs.
+    """
     vc = partition.vertex_colour
     counts_g: Dict[int, int] = {}
     for v in verts_g:
@@ -129,7 +143,20 @@ def is_balanced_pair(verts_g: list, verts_h: list, partition: Partition) -> bool
 
 
 def is_discrete_pair(verts_g: list, verts_h: list, partition: Partition) -> bool:
-    """Check discrete for two graphs (fast, no set allocation)."""
+    """Check if the colouring is discrete for both graphs.
+
+    A discrete colouring assigns a unique colour to every vertex.
+    Since the partition is assumed balanced, checking one graph is
+    sufficient.  Returns False immediately on the first duplicate.
+
+    Args:
+        verts_g:    Vertex list of graph G.
+        verts_h:    Vertex list of graph H.
+        partition:  A stable Partition.
+
+    Returns:
+        True if every vertex in each graph has a distinct colour.
+    """
     vc = partition.vertex_colour
     n = len(verts_g)
     if n != len(verts_h):
@@ -148,7 +175,22 @@ def is_discrete_pair(verts_g: list, verts_h: list, partition: Partition) -> bool
 def _choose_branching_class(verts_g: list, verts_h: list,
                             partition: Partition
                             ) -> Tuple[List[Vertex], List[Vertex]]:
-    """Choose the smallest non-trivial colour class to branch on."""
+    """Choose the smallest non-trivial colour class to branch on.
+
+    A colour class is non-trivial if it contains >= 2 vertices in
+    both graphs.  Picking the smallest such class minimises the
+    branching factor at each recursion level, reducing the search
+    tree size (Section 3.5 "Improvements").
+
+    Args:
+        verts_g:    Vertex list of graph G.
+        verts_h:    Vertex list of graph H.
+        partition:  A balanced, non-discrete Partition.
+
+    Returns:
+        ``(class_g, class_h)`` — vertex lists for the chosen colour
+        class in G and H respectively.
+    """
     vc = partition.vertex_colour
     colours_g: Dict[int, list] = {}
     colours_h: Dict[int, list] = {}
@@ -185,7 +227,21 @@ def _choose_branching_class(verts_g: list, verts_h: list,
 
 def _extract_bijection(verts_g: list, verts_h: list,
                        partition: Partition) -> Dict[Vertex, Vertex]:
-    """Extract the vertex mapping f: V(G) → V(H) from a bijection partition."""
+    """Extract the vertex mapping f: V(G) → V(H) from a discrete partition.
+
+    When the partition is discrete and balanced, every colour appears
+    exactly once in each graph.  This function matches each vertex in G
+    to the vertex in H with the same colour, yielding the unique
+    isomorphism defined by the partition.
+
+    Args:
+        verts_g:    Vertex list of graph G.
+        verts_h:    Vertex list of graph H.
+        partition:  A discrete, balanced Partition.
+
+    Returns:
+        Dict mapping each vertex of G to its image in H.
+    """
     vc = partition.vertex_colour
     colour_to_h: Dict[int, Vertex] = {}
     for v in verts_h:
@@ -203,13 +259,30 @@ def count_isomorphisms(graph_g: Graph,
                        I: List[Vertex],
                        adj: Dict,
                        gi_only: bool = False) -> int:
-    """Count isomorphisms from *graph_g* to *graph_h* following (D, I).
+    """Count isomorphisms from *graph_g* to *graph_h*.
 
-    Algorithm 2 (CountIsomorphism) from Chapter 3.
+    Implements Algorithm 2 (CountIsomorphism) from Chapter 3.
+    Starting from the individualization sequences D (vertices in G) and
+    I (their images in H), recursively branches on colour classes until
+    the partition is either unbalanced (no isomorphism) or discrete
+    (exactly one isomorphism).
+
+    Args:
+        graph_g:   Source graph.
+        graph_h:   Target graph.
+        D:         Initial individualization sequence in G (usually []).
+        I:         Initial individualization sequence in H (usually []).
+        adj:       Pre-computed adjacency dict for all vertices in G and H.
+        gi_only:   If True, short-circuit after finding the first
+                   isomorphism (returns 1 instead of counting all).
+
+    Returns:
+        Number of isomorphisms (or 1 if gi_only and at least one exists).
     """
     ctx = _BranchingContext(graph_g, graph_h, adj)
 
     def _count(D: list, I: list) -> int:
+        """Recursive core: refine, check, and branch if needed."""
         partition, status = ctx.refine_and_check(D, I)
         if status == 0:
             return 0
@@ -268,7 +341,19 @@ def _forest_automorphisms(graph: Graph) -> int:
 # ---------------------------------------------------------------------------
 
 def _component_graph(vertices: List[Vertex], parent: Graph) -> Graph:
-    """Build a subgraph induced by *vertices* from *parent*."""
+    """Build a new Graph induced by *vertices* from *parent*.
+
+    Creates a fresh Graph with new Vertex/Edge objects containing
+    only the vertices in the given list and edges between them.
+    Used to isolate connected components for independent solving.
+
+    Args:
+        vertices:  List of vertices forming the induced subgraph.
+        parent:    The original graph containing these vertices.
+
+    Returns:
+        A new Graph object representing the induced subgraph.
+    """
     vset = set(vertices)
     sub = Graph(directed=parent.directed, n=len(vertices))
     sub_verts = list(sub.vertices)
@@ -290,8 +375,21 @@ def _component_graph(vertices: List[Vertex], parent: Graph) -> Graph:
 def _disconnected_automorphisms(graph: Graph, adj: Dict) -> int:
     """Count |Aut(G)| for a disconnected non-forest graph.
 
-    Decomposes into connected components, solves each independently,
-    and multiplies by k! for each group of k isomorphic components.
+    Decomposes G into connected components and solves each
+    independently.  The total automorphism count is the product of
+    per-component counts, times k! for each group of k mutually
+    isomorphic components (since isomorphic components can be freely
+    permuted among themselves).
+
+    Component isomorphism is checked via vertex/edge count filtering
+    followed by exact branching.
+
+    Args:
+        graph:  A disconnected, non-forest graph.
+        adj:    Pre-computed adjacency dict.
+
+    Returns:
+        |Aut(graph)|
     """
     components = find_components(graph)
     if len(components) == 1:
@@ -370,6 +468,12 @@ def count_automorphisms(graph: Graph,
     if not is_connected(graph):
         return _disconnected_automorphisms(graph, adj)
 
+    # Twin reduction: collapse twin groups and multiply by k! factors
+    reduced, aut_factor, pre_colouring = reduce_twins(graph)
+    if len(reduced) < len(graph):
+        reduced_adj = _build_neighbour_index(list(reduced))
+        return aut_factor * _count_aut_core(reduced, reduced_adj, pre_colouring)
+
     return _count_aut_core(graph, adj, None)
 
 
@@ -405,6 +509,12 @@ def _count_aut_core(graph: Graph, adj: Dict,
     generating_set: List[Permutation] = []
 
     def _to_permutation(partition: Partition) -> Permutation:
+        """Convert a discrete partition into an automorphism permutation.
+
+        Extracts the G→H bijection from the partition, then maps it
+        back to G's own vertices (since H is a copy of G) to produce
+        a self-isomorphism (automorphism).
+        """
         bijection = _extract_bijection(ctx.verts_g, ctx.verts_h, partition)
         return Permutation({v: copy_to_orig[bijection[v]] for v in orig_verts})
 
@@ -412,7 +522,14 @@ def _count_aut_core(graph: Graph, adj: Dict,
     I: list = []
 
     def _update() -> None:
-        """Algorithm 9 — recursive branching with Lemma 5.11 pruning."""
+        """Algorithm 9 — build generating set with Lemma 5.11 pruning.
+
+        Trivial branch (x → x'): recurse with _update to find ALL
+        stabiliser generators.  Non-trivial branches (x → y): call
+        _find_one to find just ONE automorphism per coset — combined
+        with the stabiliser, this suffices to generate all automorphisms
+        mapping x to y.
+        """
         partition, status = ctx.refine_and_check(D, I)
         if status == 0:
             return
@@ -440,7 +557,13 @@ def _count_aut_core(graph: Graph, adj: Dict,
         D.pop()
 
     def _find_one(parent_cg, parent_ch) -> bool:
-        """Find one automorphism in this non-trivial branch."""
+        """Find exactly one non-identity automorphism in this branch.
+
+        Returns True (and appends to generating_set) as soon as a
+        single automorphism is found.  Returns False if the branch
+        is exhausted without finding one.  This is the Lemma 5.11
+        optimization: one coset representative per non-trivial branch.
+        """
         partition, status = ctx.refine_and_check(D, I)
         if status == 0:
             return False
@@ -491,7 +614,19 @@ def _tree_equivalence_classes(graphs: List[Graph]) -> List[List[int]]:
 
 
 def _are_isomorphic(graph_g: Graph, graph_h: Graph, adj: Dict) -> bool:
-    """Decide whether *graph_g* and *graph_h* are isomorphic."""
+    """Decide whether *graph_g* and *graph_h* are isomorphic.
+
+    Applies cheap early-exit checks (vertex count, edge count) before
+    running the expensive branching algorithm with ``gi_only=True``.
+
+    Args:
+        graph_g:  First graph.
+        graph_h:  Second graph.
+        adj:      Pre-computed adjacency dict for vertices of both graphs.
+
+    Returns:
+        True if the two graphs are isomorphic.
+    """
     if len(graph_g) != len(graph_h):
         return False
     if len(graph_g.edges) != len(graph_h.edges):

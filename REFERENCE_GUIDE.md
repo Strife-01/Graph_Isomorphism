@@ -87,6 +87,14 @@ Input: .grl or .gr file
         |                (preprocessing.py)
         | (if not a tree)
         v
+  [Disconnected?]  -- Decompose into components, solve each independently
+        |               multiply by k! for groups of k isomorphic components
+        | (if connected)
+        v
+  [Twin Reduction]  -- Collapse twin groups, multiply by k! per group
+        |               solve reduced graph with pre-colouring
+        | (if twins found, or pass through)
+        v
   [Fast Colour Refinement]  -- Compute stable colouring in O(m log n)
         |                       (fast_colorref.py)
         v
@@ -313,7 +321,23 @@ When colour refinement gives a balanced colouring that isn't discrete, there are
 
 **Encoding the choice**: Give x and y a unique new colour, then re-run colour refinement. This propagates the constraint "x maps to y" through the graph structure.
 
-#### Key helper: `_BranchingContext` (lines 75-116)
+#### `_copy_graph` (line 44)
+
+Creates an independent copy of a graph with fresh `Vertex` and `Edge` objects. Returns `(copy, vertex_map)` where `vertex_map` maps each original vertex to its counterpart in the copy. Used by `_count_aut_core` to build the pair (G, H=copy of G) needed for automorphism detection — comparing a graph to its own copy finds self-isomorphisms.
+
+#### Partition helpers: `is_balanced_pair`, `is_discrete_pair`, `_extract_bijection` (lines 115-193)
+
+These are **optimized two-graph versions** of the general partition checks in `fast_colorref.py`:
+
+| Function | Lines | Purpose |
+|----------|-------|---------|
+| `is_balanced_pair(verts_g, verts_h, partition)` | 115-128 | Checks if two graphs have identical colour distributions. Faster than the general `is_balanced` — uses a single counter dict instead of comparing signatures. |
+| `is_discrete_pair(verts_g, verts_h, partition)` | 131-145 | Checks if every vertex in G has a unique colour (since the partition is balanced, H is discrete too). Avoids set allocation overhead of the general version. |
+| `_extract_bijection(verts_g, verts_h, partition)` | 186-193 | When the partition is discrete and balanced, extracts the unique vertex mapping f: V(G) → V(H) by matching vertices that share the same colour. Used by `_count_aut_core` to convert a discrete partition into a `Permutation` object. |
+
+These are called from `_BranchingContext.refine_and_check` on every recursive call, so their performance matters.
+
+#### Key helper: `_BranchingContext` (lines 72-112)
 
 This class pre-computes and caches data shared across all recursive calls for a pair of graphs G and H:
 - `adj`: pre-computed adjacency lists
@@ -321,7 +345,7 @@ This class pre-computes and caches data shared across all recursive calls for a 
 - `base_colouring`: shared dict, modified in-place for each branch then restored (avoids allocation)
 - `refine_and_check(D, I)`: the core operation — set up colouring from (D,I) sequences, run fast refinement, classify result as unbalanced (0), bijection (1), or needs-more-branching (2)
 
-#### `_choose_branching_class` (lines 151-186)
+#### `_choose_branching_class` (lines 148-183)
 
 > **Reader**: Section 3.5 "Improvements" (page 36)
 
@@ -329,7 +353,7 @@ Picks the **smallest** non-trivial colour class (size ≥ 2 in both graphs) to b
 
 **Why smallest?** If a class has k vertices, branching on it creates k recursive calls. Choosing the smallest class minimizes k, reducing the search tree.
 
-#### `count_isomorphisms` (lines 203-237) — Algorithm 2
+#### `count_isomorphisms` (lines 200-234) — Algorithm 2
 
 > **Reader**: Chapter 3, Algorithm 2 "CountIsomorphism" (page 28)  
 > **Lecture 2**: Slides 10-18  
@@ -348,16 +372,26 @@ CountIso(G, H, D, I):
 
 The `gi_only=True` parameter short-circuits after finding the first isomorphism (returns 1 instead of counting all).
 
-#### `count_automorphisms` (lines 273-297) — Entry point for #Aut
+#### `count_automorphisms` — Entry point for #Aut
 
 > **Reader**: Chapter 5, Section 5.4 "Pruning the Branching Tree"  
 > **Lecture 4**: Slides 10-16  
 
 This orchestrates the full #Aut pipeline:
-1. **Preprocessing**: If the graph is a forest, solve in O(n) via AHU (`_forest_automorphisms`).
-2. **General case**: Call `_count_aut_core` which builds a generating set.
+1. **Forest fast-path**: If the graph is a forest, solve in O(n) via AHU (`_forest_automorphisms`).
+2. **Component decomposition**: If disconnected (non-forest), decompose into connected components via `_disconnected_automorphisms`. Each component is solved independently; isomorphic components contribute an additional k! factor.
+3. **Twin reduction**: For connected non-forest graphs, call `reduce_twins` to iteratively collapse twin groups, accumulate the k! factors, and pass the reduced graph (with pre-colouring) to `_count_aut_core`. Skipped if no twins are found.
+4. **General case**: Call `_count_aut_core` which builds a generating set.
 
-#### `_count_aut_core` (lines 301-392) — Algorithm 9 with Lemma 5.11 pruning
+#### `_disconnected_automorphisms` — Component decomposition for #Aut
+
+Builds subgraphs for each connected component via `_component_graph`, solves each independently (dispatching to AHU for trees, generating sets for general graphs), groups isomorphic components (using vertex/edge count checks + exact branching), and multiplies by k! for each group of k isomorphic components.
+
+#### `_are_isomorphic` — Quick isomorphism check
+
+Decides whether two graphs are isomorphic with early exits for different vertex counts and edge counts before running the expensive branching algorithm.
+
+#### `_count_aut_core` (lines 383-479) — Algorithm 9 with Lemma 5.11 pruning
 
 > **Reader**: Chapter 5, Algorithm 9 "UpdateGeneratingSet" (page 63)  
 > **Lecture 4**: Slides 13-14 "Basic Algorithmic Idea"  
@@ -397,7 +431,11 @@ After exploring the trivial branch (x → x'), we have all generators for Stab_x
 
 4. After `_update` completes, compute |⟨X⟩| via `group_order()` from `permutation.py`.
 
-#### `find_equivalence_classes` (lines 419-462) — GI with fast-path
+#### `_tree_equivalence_classes` (line 486) — Tree GI fast-path
+
+When all input graphs are trees, this function bypasses branching entirely. It computes the AHU canonical label for each tree and groups graphs with identical labels — two trees are isomorphic if and only if their canonical labels match. Runs in O(n) per tree.
+
+#### `find_equivalence_classes` (lines 508-551) — GI with fast-path
 
 > **Not directly from any single reader algorithm** — this is our own optimization.
 
@@ -407,7 +445,7 @@ For the GI problem with multiple graphs:
 
 This avoids branching on most graph pairs.
 
-#### `solve` (lines 469-536) — Main entry point
+#### `solve` — Main entry point
 
 Detects problem type from filename:
 - `*GI.grl` → equivalence classes only
@@ -485,11 +523,25 @@ where Δᵢ is the orbit of base point βᵢ under G^(i-1), and G^(i) = Stab(β�
 
 **Stabiliser generators** are computed via **Schreier's Lemma**: for each orbit element β and generator g, the Schreier generator is u(g(β))⁻¹ ∘ g ∘ u(β), where u is the transversal.
 
+#### `_StabiliserLevel` (line 131) — Chain data structure
+
+Internal data class representing one level of a stabiliser chain. Stores:
+- `alpha`: the base point for this level
+- `orbit`: set of elements reachable from `alpha` under the level's generators
+- `transversal`: dict mapping each orbit element to a permutation that sends `alpha` to it
+- `generators`: the generating set for the stabiliser at this level
+
+Used by `_build_chain` and `group_order` to walk the chain.
+
 #### `_build_chain` (lines 147-183) — Schreier-Sims
 
 > **Reader**: Section 5.5, Theorem 5.19  
 
 Builds the stabiliser chain: at each level, computes orbit + transversal, then derives Schreier generators for the next level's stabiliser.
+
+#### `_choose_base` (lines 186-204) — Base selection
+
+Selects a sequence of base points for the stabiliser chain. Picks elements from the vertex list that are actually moved by the generators (i.e., in some generator's support). A good base keeps the chain short — only elements that the group acts non-trivially on are chosen.
 
 #### `is_member` (lines 241-273) — Proposition 5.20 (Sifting)
 
@@ -514,14 +566,16 @@ This module handles special graph structures that can be solved faster than the 
 
 `is_connected(graph)`: True if exactly one component.
 
-#### Tree/Forest Detection (lines 67-81)
+In `branching.py`, disconnected graphs are automatically decomposed into components for #Aut computation. Each component is solved independently (AHU for trees, generating sets for general graphs), and isomorphic components contribute a k! permutation factor. This is handled by `_disconnected_automorphisms` and `_component_graph`.
+
+#### Tree/Forest Detection (lines 67-85)
 
 > **Reader**: Section 6.2 "Trees" (page 76)  
 
 - `is_tree(graph)`: Connected AND |E| = |V| - 1
 - `is_forest(graph)`: |E| = |V| - |components|  (each component is a tree)
 
-#### AHU Algorithm for Trees (lines 88-211)
+#### AHU Algorithm for Trees (lines 88-210)
 
 > **Reader**: Section 6.2 "Trees" (page 76-78)  
 > This is based on the AHU (Aho, Hopcroft, Ullman) tree isomorphism algorithm.
@@ -588,7 +642,7 @@ For forests: compute per-component, then multiply by k! for each group of k isom
 
 `find_twin_groups(graph)`: Hash each vertex's neighbourhood signature. Vertices with the same signature are twins. O(n + m) time.
 
-#### Twin Reduction (lines 248-369)
+#### Twin Reduction (lines 248-368)
 
 > **Reader**: Section 6.3 "Twins" (page 78)  
 
@@ -598,7 +652,7 @@ For forests: compute per-component, then multiply by k! for each group of k isom
 3. Repeat until no more twins found (new twins may appear after collapsing)
 4. Return (reduced_graph, aut_factor, initial_colouring)
 
-**Note**: This is implemented but only used for detection/analysis — the main #Aut pipeline uses generating sets with Lemma 5.11 pruning instead, which handles twins efficiently without explicit reduction.
+**Integration**: `reduce_twins` is called from `count_automorphisms` in `branching.py` for connected non-forest graphs. If twins are found (reduced graph is smaller), the reduced graph with its pre-colouring is passed to `_count_aut_core`, and the result is multiplied by the accumulated k! factor. If no twins are found, the reduction is skipped and the original graph is used directly.
 
 ---
 
@@ -813,7 +867,7 @@ If k vertices are pairwise (false) twins, they can be arbitrarily permuted among
 
 #### Implementation note
 
-The `reduce_twins` function is complete but the integration with the main #Aut pipeline is tricky (as documented in the code). The generating-set approach with Lemma 5.11 pruning handles twin-heavy graphs efficiently without explicit reduction, so the explicit twin collapse isn't used in the main pipeline.
+The `reduce_twins` function is fully integrated into the `count_automorphisms` pipeline in `branching.py`. For connected non-forest graphs, twins are iteratively collapsed before branching. The pre-colouring encodes the twin type (true/false), group size, and elimination round, ensuring colour refinement can distinguish structurally different representatives in the reduced graph. The accumulated k! factor from all collapsed twin groups is multiplied with the automorphism count of the reduced graph.
 
 ---
 

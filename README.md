@@ -12,8 +12,9 @@ For algorithm details, implementation notes, and performance analysis, see `docu
 
 ```bash
 python3 branching.py <graph_file>
-> **_NOTE:_**  All the files in the directory SampleGraphsBasicColourRefinement are compressed with the zip algorithm.
 ```
+
+> **Note:** The files in `SampleGraphsBasicColourRefinement/` are also available as a zip archive.
 
 The problem type is auto-detected from the filename:
 
@@ -43,13 +44,13 @@ Graphs 0 and 1 are isomorphic to each other, graphs 2 and 3, and graphs 4 and 5.
 
 ### Find which graphs are isomorphic + count automorphisms
 
+To compute both equivalence classes and automorphism counts, the filename must contain `GIAut`:
+
 ```bash
-$ python3 branching.py SampleGraphsBasicColourRefinement/cref9vert3comp_10_27.grl
-Sets of isomorphic graphs:
-[0, 3]
-[1, 8, 9]
-[2, 4, 7]
-[5, 6]
+$ python3 branching.py tests_v2/test06GIAut.grl
+Sets of isomorphic graphs with automorphisms:
+[0, 1, 3, 4]: 384
+[2]: 8
 ```
 
 ### Run on all sample instances
@@ -127,11 +128,11 @@ The filename tells the solver what to compute:
 
 | File | Description |
 |------|------------|
-| `branching.py` | **Main entry point.** Solver for GI and #Aut |
+| `branching.py` | **Main entry point.** Solver for GI and #Aut. Includes component decomposition for disconnected graphs and twin reduction integration |
 | `fast_colorref.py` | Fast colour refinement (O(m log n), Hopcroft-style) |
 | `colorref.py` | Basic colour refinement (O(n^2 m)) |
 | `permutation.py` | Permutation group operations (orbits, stabiliser chains) |
-| `preprocessing.py` | Tree/forest detection (AHU), twin detection, components |
+| `preprocessing.py` | Tree/forest detection (AHU), twin detection & iterative reduction, component decomposition |
 | `graph.py` | Graph data structure (provided by course) |
 | `graph_io.py` | Graph file I/O (provided by course) |
 

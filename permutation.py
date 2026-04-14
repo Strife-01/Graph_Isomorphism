@@ -32,6 +32,15 @@ class Permutation:
     __slots__ = ("_map", "_hash")
 
     def __init__(self, mapping: Optional[Dict] = None):
+        """Create a permutation from an explicit mapping dict.
+
+        Only non-fixed-point entries are stored: if mapping[k] == k,
+        that entry is dropped.  Passing ``None`` or ``{}`` gives the
+        identity permutation.
+
+        Args:
+            mapping:  Dict of element → image.  ``None`` for identity.
+        """
         if mapping is None:
             self._map: Dict = {}
         else:
@@ -76,6 +85,12 @@ class Permutation:
         return "".join(f"({' '.join(str(x) for x in c)})" for c in cycles)
 
     def _cycle_notation(self) -> List[List]:
+        """Return the permutation in cycle notation as a list of cycles.
+
+        Each cycle is a list of elements.  Fixed points are omitted.
+        Cycles are sorted by their smallest element for deterministic
+        output.
+        """
         visited: Set = set()
         cycles: List[List] = []
         for k in sorted(self._map, key=str):
@@ -137,6 +152,15 @@ class _StabiliserLevel:
     __slots__ = ("alpha", "orbit", "transversal", "generators")
 
     def __init__(self, alpha, generators: List[Permutation]):
+        """Build one level of the stabiliser chain.
+
+        Computes the orbit and transversal of *alpha* under
+        *generators* immediately on construction.
+
+        Args:
+            alpha:       The base point for this level.
+            generators:  Generating set for the group at this level.
+        """
         self.alpha = alpha
         self.generators = list(generators)
         self.orbit, self.transversal = orbit_and_transversal(
