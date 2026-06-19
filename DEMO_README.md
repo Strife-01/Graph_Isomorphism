@@ -29,8 +29,8 @@ python3 branching.py path/to/instance.gr
 ## Running on a Folder of Instances
 
 ```bash
-for f in path/to/folder/*.grl path/to/folder/*.gr; do
-    echo "=== $(basename $f) ==="
+for f in SampleGraphsBasicColourRefinement/*.grl; do
+    echo "=== $f ==="
     python3 branching.py "$f"
     echo
 done
